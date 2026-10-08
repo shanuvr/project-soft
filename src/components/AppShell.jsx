@@ -29,7 +29,7 @@ import DevReports from '../dev/reports/DevReports.jsx';
 
 import Placeholder from '../views/Placeholder.jsx';
 
-const THEME_KEY = 'system-soft:theme';
+const THEME_KEY = 'project-soft:theme';
 
 function getClock() {
   return new Date().toLocaleString('en-US', {
@@ -159,7 +159,7 @@ export default function AppShell({ initialApp = 'dashboard' }) {
         className={`flex items-center justify-between border-b px-3 sm:px-4 py-2 backdrop-blur-md transition-colors ${panelOn} ${panelBorder} shrink-0`}
       >
         <div className="flex items-center gap-2 sm:gap-3 text-sm shrink-0">
-          <span className="font-semibold text-violet-500 whitespace-nowrap">System Soft</span>
+          <span className="font-semibold text-violet-500 whitespace-nowrap">Project Soft</span>
           <span className={`hidden md:inline text-xs ${contentOn}`}>Programser International</span>
         </div>
         <div className="hidden sm:block text-xs tabular-nums text-center px-2 truncate">{now}</div>

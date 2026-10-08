@@ -155,7 +155,7 @@ export default function Reports({ dark }) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
         doc.setTextColor(...GRAY);
-        doc.text('System Soft  |  Programser International  |  Confidential', M, pageH - 26);
+        doc.text('Project Soft  |  Programser International  |  Confidential', M, pageH - 26);
         doc.text(`Page ${i} of ${pages}`, pageW - M, pageH - 26, { align: 'right' });
       }
     };
@@ -178,7 +178,7 @@ export default function Reports({ dark }) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(...WHITE);
-    doc.text('System Soft', M, 21);
+    doc.text('Project Soft', M, 21);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(203, 207, 215);

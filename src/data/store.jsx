@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { AppContext } from './context';
 import { createSeed } from './seed';
 
-const DB_KEY = 'system-soft:db';
-const SESSION_KEY = 'system-soft:session';
+const DB_KEY = 'project-soft:db';
+const SESSION_KEY = 'project-soft:session';
 const SEED_VERSION = 24;
 
 function readKey(key) {
@@ -59,11 +59,11 @@ function nextWoId(existingWorkOrders) {
 }
 
 function loadDb() {
-  const persisted = readKey(DB_KEY);
+  const persisted = readKey(DB_KEY) || readKey('system-soft:db');
   if (persisted && persisted._seedVersion === SEED_VERSION) return persisted;
   if (persisted && persisted._seedVersion !== SEED_VERSION) {
     console.warn(
-      `[system-soft] Seed data updated (version ${persisted._seedVersion} -> ${SEED_VERSION}); stored db was reset to the new seed.`,
+      `[project-soft] Seed data updated (version ${persisted._seedVersion} -> ${SEED_VERSION}); stored db was reset to the new seed.`,
     );
   }
   return createSeed();

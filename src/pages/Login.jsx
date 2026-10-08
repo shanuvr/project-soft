@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useApp } from '../data/context.js';
 
 const BOOT_LINES = [
-  { type: 'ok', text: 'systemsoft-config.service - loaded configuration pms.conf' },
-  { type: 'ok', text: 'mounting workspace     - /var/systemsoft/system-soft' },
-  { type: 'ok', text: 'systemsoft-route.service - project route resolver started' },
-  { type: 'ok', text: 'systemsoft-auth.service - operator gateway up (127.0.0.1:8080)' },
-  { type: 'ok', text: 'systemsoft-sprint.service - sprint engine online (12 contributors)' },
+  { type: 'ok', text: 'projectsoft-config.service - loaded configuration pms.conf' },
+  { type: 'ok', text: 'mounting workspace     - /var/projectsoft/project-soft' },
+  { type: 'ok', text: 'projectsoft-route.service - project route resolver started' },
+  { type: 'ok', text: 'projectsoft-auth.service - operator gateway up (127.0.0.1:8080)' },
+  { type: 'ok', text: 'projectsoft-sprint.service - sprint engine online (12 contributors)' },
   { type: 'ok', text: 'Reached target graphical.target - console interface ready' },
 ];
 
@@ -184,7 +184,7 @@ export default function Login() {
         {!booting && (
           <>
             <div className="h-4" />
-            <div className="text-zinc-500">System Soft 5.2.1 (system-soft) tty1</div>
+            <div className="text-zinc-500">Project Soft 5.2.1 (project-soft) tty1</div>
             <div className="text-[11px] text-zinc-700">operator logins: admin / developer</div>
             <div className="h-2" />
           </>
@@ -195,7 +195,7 @@ export default function Login() {
           <div key={idx} className="whitespace-pre-wrap break-words">
             {item.type === 'login' && (
               <>
-                <span className="text-zinc-100">system-soft login: </span>
+                <span className="text-zinc-100">project-soft login: </span>
                 <span className="text-zinc-100">{item.text}</span>
               </>
             )}
@@ -213,7 +213,7 @@ export default function Login() {
         {/* Interactive login prompt */}
         {!booting && step === 'username' && (
           <div className="whitespace-pre-wrap break-words">
-            <span className="text-zinc-100">system-soft login:&nbsp;</span>
+            <span className="text-zinc-100">project-soft login:&nbsp;</span>
             <TermInput
               ref={usernameRef}
               value={username}
@@ -253,7 +253,7 @@ export default function Login() {
 
       {/* Status bar */}
       <div className="max-w-3xl mx-auto w-full pt-3 mt-3 border-t border-zinc-900 text-[11px] text-zinc-600 flex items-center justify-between">
-        <span>System Soft - Programser International</span>
+        <span>Project Soft - Programser International</span>
         <span>operator gateway 127.0.0.1:8080</span>
       </div>
 
