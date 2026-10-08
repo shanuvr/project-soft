@@ -1,17 +1,22 @@
 export const PTD_STATUS_LABELS = {
+  requested: 'Incoming Request',
+  pending: 'Pending',
   received: 'Received',
   'not-started': 'Not Started',
   'in-progress': 'In Progress',
   'on-hold': 'On Hold',
   completed: 'Completed',
+  rejected: 'Rejected',
 };
 
 export const WO_STATUS_LABELS = {
+  assigned: 'Assigned (Pending)',
   'not-started': 'Not Started',
   'in-progress': 'In Progress',
   'submitted-review': 'In Review',
   'changes-requested': 'Changes Requested',
   completed: 'Completed',
+  rejected: 'Rejected by Dev',
 };
 
 export const PRIORITY_LABELS = {

@@ -120,7 +120,7 @@ export default function WorkOrderTable({
               </th>
               <th className="px-4 py-3.5">Hours (Used / Est)</th>
               <th className="px-4 py-3.5">Work Progress</th>
-              <th className="py-3.5 pl-4 pr-5 text-right">Actions</th>
+              <th className="py-3.5 pl-4 pr-6 sm:pr-8 text-right font-semibold whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/40 dark:divide-zinc-800/60">
@@ -159,10 +159,15 @@ export default function WorkOrderTable({
                   <td className="py-3 pl-5 pr-4">
                     <div className="flex items-start gap-2.5">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className={`font-semibold text-sm ${headingText} group-hover:text-violet-400 transition-colors`}>
                             {wo.title}
                           </span>
+                          {wo.status === 'rejected' && (
+                            <span className="rounded bg-rose-500/15 border border-rose-500/30 px-1.5 py-0.5 text-[10px] font-bold text-rose-400">
+                              Rejected by Dev
+                            </span>
+                          )}
                           {activeBlocker && (
                             <span
                               title={`Blocked: ${activeBlocker.description}`}
@@ -173,24 +178,31 @@ export default function WorkOrderTable({
                             </span>
                           )}
                         </div>
-                        <div className="mt-1 flex items-center gap-2 text-xs">
-                          {project && <span className={`font-medium ${mutedText}`}>{project.name}</span>}
-                          {ptd && (
-                            <span
-                              className={`rounded px-1.5 py-0.2 text-[10px] font-semibold ${
-                                dark ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-700'
-                              }`}
-                            >
-                              {ptd.ref || ptd.name}
-                            </span>
-                          )}
-                          {wo.comments?.length > 0 && (
-                            <span className={`flex items-center gap-0.5 text-[11px] ${mutedText}`}>
-                              <MessageSquare className="h-3 w-3" />
-                              {wo.comments.length}
-                            </span>
-                          )}
-                        </div>
+                        {wo.status === 'rejected' && wo.rejectionRemark ? (
+                          <div className="mt-1 text-xs text-rose-400 font-medium truncate max-w-[320px]">
+                            <span className="font-bold text-rose-500">Reason: </span>
+                            {wo.rejectionRemark}
+                          </div>
+                        ) : (
+                          <div className="mt-1 flex items-center gap-2 text-xs">
+                            {project && <span className={`font-medium ${mutedText}`}>{project.name}</span>}
+                            {ptd && (
+                              <span
+                                className={`rounded px-1.5 py-0.2 text-[10px] font-semibold ${
+                                  dark ? 'bg-zinc-800 text-zinc-300' : 'bg-zinc-100 text-zinc-700'
+                                }`}
+                              >
+                                {ptd.ref || ptd.name}
+                              </span>
+                            )}
+                            {wo.comments?.length > 0 && (
+                              <span className={`flex items-center gap-0.5 text-[11px] ${mutedText}`}>
+                                <MessageSquare className="h-3 w-3" />
+                                {wo.comments.length}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>
@@ -303,7 +315,7 @@ export default function WorkOrderTable({
                   </td>
 
                   {/* Quick Action buttons */}
-                  <td className="py-3 pl-4 pr-5 text-right whitespace-nowrap">
+                  <td className="py-3 pl-4 pr-6 sm:pr-8 text-right whitespace-nowrap">
                     <div
                       className="flex items-center justify-end gap-1.5"
                       onClick={(e) => e.stopPropagation()}

@@ -11,6 +11,13 @@ import { PriorityBadge } from '../badges.jsx';
 
 const COLUMN_DEFS = [
   {
+    id: 'assigned',
+    title: 'Assigned',
+    accent: 'border-blue-500/40 text-blue-400',
+    dot: 'bg-blue-400',
+    bg: 'bg-blue-500/5',
+  },
+  {
     id: 'not-started',
     title: 'Not Started',
     accent: 'border-zinc-500/40 text-zinc-400',
@@ -25,25 +32,18 @@ const COLUMN_DEFS = [
     bg: 'bg-amber-500/5',
   },
   {
-    id: 'submitted-review',
-    title: 'In Review',
-    accent: 'border-violet-500/40 text-violet-400',
-    dot: 'bg-violet-400',
-    bg: 'bg-violet-500/5',
-  },
-  {
-    id: 'changes-requested',
-    title: 'Changes Requested',
-    accent: 'border-orange-500/40 text-orange-400',
-    dot: 'bg-orange-400',
-    bg: 'bg-orange-500/5',
-  },
-  {
     id: 'completed',
     title: 'Completed',
     accent: 'border-emerald-500/40 text-emerald-400',
     dot: 'bg-emerald-400',
     bg: 'bg-emerald-500/5',
+  },
+  {
+    id: 'rejected',
+    title: 'Rejected',
+    accent: 'border-rose-500/40 text-rose-400',
+    dot: 'bg-rose-400',
+    bg: 'bg-rose-500/5',
   },
 ];
 
@@ -235,6 +235,14 @@ export default function WorkOrderKanban({
                       <div className="mt-2.5 flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-400">
                         <AlertTriangle className="h-3.5 w-3.5 shrink-0 animate-pulse text-red-400" />
                         <span className="truncate">{activeBlocker.description}</span>
+                      </div>
+                    )}
+
+                    {/* Developer Rejection Remark Callout */}
+                    {wo.status === 'rejected' && wo.rejectionRemark && (
+                      <div className="mt-2.5 rounded-lg border border-rose-500/30 bg-rose-500/10 p-2 text-[11px] text-rose-300">
+                        <span className="font-bold text-rose-400 block mb-0.5">Rejected by Dev:</span>
+                        <span className="line-clamp-2 italic">"{wo.rejectionRemark}"</span>
                       </div>
                     )}
 

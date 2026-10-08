@@ -4,7 +4,7 @@ import { createSeed } from './seed';
 
 const DB_KEY = 'project-soft:db';
 const SESSION_KEY = 'project-soft:session';
-const SEED_VERSION = 24;
+const SEED_VERSION = 27;
 
 function readKey(key) {
   try {
@@ -105,6 +105,118 @@ export function AppProvider({ children }) {
     }));
   };
 
+  const acceptPtd = (id) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    setDb((prev) => {
+      const target = prev.ptds.find((p) => p.id === id);
+      if (!target) return prev;
+      return {
+        ...prev,
+        ptds: prev.ptds.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                status: 'not-started',
+                acceptedDate: today,
+                acceptedBy: currentUser?.name || 'Project Manager',
+                rejectionRemark: undefined,
+              }
+            : p,
+        ),
+        notifications: [
+          makeNotification(
+            'approval',
+            `PTD "${target.ref} · ${target.name}" was accepted by PM ${currentUser?.name || ''}`,
+            {
+              actor: currentUser?.name || 'Project Manager',
+              date: today,
+              time,
+              projectId: target.projectId || null,
+            },
+          ),
+          ...(prev.notifications || []),
+        ],
+        activity: [
+          {
+            id: uid('a'),
+            date: today,
+            time,
+            actor: currentUser?.name || 'Project Manager',
+            text: `accepted incoming PTD "${target.ref} · ${target.name}" from external system`,
+            projectId: target.projectId || null,
+          },
+          ...(prev.activity || []),
+        ],
+      };
+    });
+  };
+
+  const rejectPtd = (id, remark = '') => {
+    const today = new Date().toISOString().slice(0, 10);
+    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    setDb((prev) => {
+      const target = prev.ptds.find((p) => p.id === id);
+      if (!target) return prev;
+      const cleanRemark = remark.trim() || 'No specific remark provided.';
+      return {
+        ...prev,
+        ptds: prev.ptds.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                status: 'rejected',
+                rejectedDate: today,
+                rejectedBy: currentUser?.name || 'Project Manager',
+                rejectionRemark: cleanRemark,
+              }
+            : p,
+        ),
+        notifications: [
+          makeNotification(
+            'issue',
+            `PTD "${target.ref} · ${target.name}" was rejected by PM (${cleanRemark})`,
+            {
+              actor: currentUser?.name || 'Project Manager',
+              date: today,
+              time,
+              projectId: target.projectId || null,
+            },
+          ),
+          ...(prev.notifications || []),
+        ],
+        activity: [
+          {
+            id: uid('a'),
+            date: today,
+            time,
+            actor: currentUser?.name || 'Project Manager',
+            text: `rejected incoming PTD "${target.ref} · ${target.name}" (Remark: ${cleanRemark})`,
+            projectId: target.projectId || null,
+          },
+          ...(prev.activity || []),
+        ],
+      };
+    });
+  };
+
+  const reopenPtdRequest = (id) => {
+    setDb((prev) => ({
+      ...prev,
+      ptds: prev.ptds.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              status: 'requested',
+              rejectionRemark: undefined,
+              rejectedDate: undefined,
+              rejectedBy: undefined,
+            }
+          : p,
+      ),
+    }));
+  };
+
   const createWorkOrders = (ptdId, rows) => {
     const clean = rows.filter((r) => r.title && r.title.trim());
     if (!clean.length) return 0;
@@ -124,7 +236,7 @@ export function AppProvider({ children }) {
       estimatedHours: Number(r.estimatedHours) || 0,
       actualHours: 0,
       progress: 0,
-      status: 'not-started',
+      status: 'assigned',
       dependencies: [],
       comments: [],
       reviewHistory: [],
@@ -164,6 +276,236 @@ export function AppProvider({ children }) {
       };
     });
     return newWorkOrders.length;
+  };
+
+  const createSingleWorkOrder = (data) => {
+    const now = new Date().toISOString().slice(0, 10);
+    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const id = nextWoId(db.workOrders);
+    const newWo = {
+      id,
+      title: data.title?.trim() || 'Untitled Work Order',
+      description: data.description?.trim() || '',
+      projectId: data.projectId || null,
+      ptdId: data.ptdId || null,
+      assignee: data.assignee || 'u2',
+      priority: data.priority || 'medium',
+      startDate: data.startDate || now,
+      dueDate: data.dueDate || '',
+      estimatedHours: Number(data.estimatedHours) || 0,
+      actualHours: 0,
+      progress: 0,
+      status: 'assigned',
+      dependencies: data.dependencies || [],
+      comments: [],
+      reviewHistory: [],
+      files: [],
+    };
+    setDb((prev) => {
+      const allWos = [...prev.workOrders, newWo];
+      const ptdWos = allWos.filter((w) => w.ptdId === newWo.ptdId);
+      const calcProgress = ptdWos.length
+        ? Math.round(ptdWos.reduce((s, w) => s + (Number(w.progress) || 0), 0) / ptdWos.length)
+        : 0;
+
+      const targetPtd = prev.ptds.find((p) => p.id === newWo.ptdId);
+      const targetDev = prev.users.find((u) => u.id === newWo.assignee);
+
+      return {
+        ...prev,
+        workOrders: allWos,
+        ptds: newWo.ptdId
+          ? prev.ptds.map((p) =>
+              p.id === newWo.ptdId
+                ? {
+                    ...p,
+                    allocatedHours: (p.allocatedHours || 0) + newWo.estimatedHours,
+                    progress: calcProgress,
+                    status: p.status === 'received' || p.status === 'not-started' ? 'in-progress' : p.status,
+                  }
+                : p,
+            )
+          : prev.ptds,
+        notifications: [
+          makeNotification(
+            'assignment',
+            `Work Order "${newWo.id} · ${newWo.title}" assigned to ${targetDev?.name || 'Developer'} in PTD "${targetPtd?.name || targetPtd?.ref || 'PTD'}"`,
+            {
+              actor: currentUser?.name || 'Project Manager',
+              date: now,
+              time,
+              projectId: newWo.projectId,
+              workOrderId: newWo.id,
+            },
+          ),
+          ...(prev.notifications || []),
+        ],
+        activity: [
+          {
+            id: uid('a'),
+            date: now,
+            time,
+            actor: currentUser?.name || 'Project Manager',
+            projectId: newWo.projectId,
+            text: `assigned Work Order "${newWo.id} · ${newWo.title}" to ${targetDev?.name || 'Developer'}`,
+          },
+          ...(prev.activity || []),
+        ],
+      };
+    });
+    return id;
+  };
+
+  const acceptWorkOrder = (id) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    setDb((prev) => {
+      const target = prev.workOrders.find((w) => w.id === id);
+      if (!target) return prev;
+      const project = prev.projects.find((p) => p.id === target.projectId);
+      return {
+        ...prev,
+        workOrders: prev.workOrders.map((w) =>
+          w.id === id
+            ? {
+                ...w,
+                status: 'not-started',
+                acceptedDate: today,
+                acceptedBy: currentUser?.id,
+                rejectionRemark: undefined,
+                rejectedDate: undefined,
+                rejectedBy: undefined,
+              }
+            : w,
+        ),
+        notifications: [
+          makeNotification(
+            'approval',
+            `${currentUser?.name || 'Developer'} accepted Work Order "${target.id} · ${target.title}"${project ? ` in ${project.name}` : ''}`,
+            {
+              actor: currentUser?.name || 'Developer',
+              date: today,
+              time,
+              projectId: target.projectId,
+              workOrderId: target.id,
+            },
+          ),
+          ...(prev.notifications || []),
+        ],
+        activity: [
+          {
+            id: uid('a'),
+            date: today,
+            time,
+            actor: currentUser?.name || 'Developer',
+            projectId: target.projectId,
+            text: `accepted assigned Work Order "${target.id} · ${target.title}"`,
+          },
+          ...(prev.activity || []),
+        ],
+      };
+    });
+  };
+
+  const rejectWorkOrder = (id, remark = '') => {
+    const today = new Date().toISOString().slice(0, 10);
+    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const cleanRemark = remark.trim() || 'No specific remark provided.';
+    setDb((prev) => {
+      const target = prev.workOrders.find((w) => w.id === id);
+      if (!target) return prev;
+      const project = prev.projects.find((p) => p.id === target.projectId);
+      return {
+        ...prev,
+        workOrders: prev.workOrders.map((w) =>
+          w.id === id
+            ? {
+                ...w,
+                status: 'rejected',
+                rejectedDate: today,
+                rejectedBy: currentUser?.id,
+                rejectionRemark: cleanRemark,
+              }
+            : w,
+        ),
+        notifications: [
+          makeNotification(
+            'issue',
+            `${currentUser?.name || 'Developer'} rejected Work Order "${target.id} · ${target.title}" (Remark: ${cleanRemark})`,
+            {
+              actor: currentUser?.name || 'Developer',
+              date: today,
+              time,
+              projectId: target.projectId,
+              workOrderId: target.id,
+            },
+          ),
+          ...(prev.notifications || []),
+        ],
+        activity: [
+          {
+            id: uid('a'),
+            date: today,
+            time,
+            actor: currentUser?.name || 'Developer',
+            projectId: target.projectId,
+            text: `rejected assigned Work Order "${target.id} · ${target.title}" (Remark: ${cleanRemark})`,
+          },
+          ...(prev.activity || []),
+        ],
+      };
+    });
+  };
+
+  const reassignWorkOrder = (id, newAssigneeId) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    setDb((prev) => {
+      const target = prev.workOrders.find((w) => w.id === id);
+      if (!target) return prev;
+      const newDev = prev.users.find((u) => u.id === newAssigneeId);
+      const project = prev.projects.find((p) => p.id === target.projectId);
+      return {
+        ...prev,
+        workOrders: prev.workOrders.map((w) =>
+          w.id === id
+            ? {
+                ...w,
+                assignee: newAssigneeId,
+                status: 'assigned',
+                rejectionRemark: undefined,
+                rejectedDate: undefined,
+                rejectedBy: undefined,
+              }
+            : w,
+        ),
+        notifications: [
+          makeNotification(
+            'assignment',
+            `Work Order "${target.id} · ${target.title}" reassigned to ${newDev?.name || 'Developer'}${project ? ` in ${project.name}` : ''}`,
+            {
+              actor: currentUser?.name || 'Project Manager',
+              date: today,
+              time,
+              projectId: target.projectId,
+              workOrderId: target.id,
+            },
+          ),
+          ...(prev.notifications || []),
+        ],
+        activity: [
+          {
+            id: uid('a'),
+            date: today,
+            time,
+            actor: currentUser?.name || 'Project Manager',
+            projectId: target.projectId,
+            text: `reassigned Work Order "${target.id} · ${target.title}" to ${newDev?.name || 'Developer'}`,
+          },
+          ...(prev.activity || []),
+        ],
+      };
+    });
   };
 
   const updateWorkOrderStatus = (id, status) => {
@@ -418,80 +760,6 @@ export function AppProvider({ children }) {
         ],
       };
     });
-  };
-
-  const createSingleWorkOrder = (data) => {
-    const id = nextWoId(db.workOrders);
-    const now = new Date().toISOString().slice(0, 10);
-    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const est = Number(data.estimatedHours) || 0;
-
-    const newWo = {
-      id,
-      title: data.title.trim(),
-      description: data.description?.trim() || '',
-      projectId: data.projectId || null,
-      ptdId: data.ptdId || null,
-      assignee: data.assignee || 'u2',
-      priority: data.priority || 'medium',
-      startDate: data.startDate || now,
-      dueDate: data.dueDate || '',
-      estimatedHours: est,
-      actualHours: 0,
-      progress: Number(data.progress) || 0,
-      status: data.status || 'not-started',
-      dependencies: data.dependencies || [],
-      comments: [],
-      reviewHistory: [],
-      files: [],
-    };
-
-    setDb((prev) => {
-      const project = prev.projects.find((p) => p.id === newWo.projectId);
-      const allWos = [newWo, ...prev.workOrders];
-      const ptdWos = allWos.filter((w) => w.ptdId === newWo.ptdId);
-      const calcProgress = ptdWos.length
-        ? Math.round(ptdWos.reduce((s, w) => s + (Number(w.progress) || 0), 0) / ptdWos.length)
-        : 0;
-
-      return {
-        ...prev,
-        workOrders: allWos,
-        ptds: prev.ptds.map((p) =>
-          p.id === newWo.ptdId
-            ? {
-                ...p,
-                allocatedHours: (p.allocatedHours || 0) + est,
-                progress: calcProgress,
-                status: p.status === 'received' || p.status === 'not-started' ? 'in-progress' : p.status,
-              }
-            : p,
-        ),
-        notifications: [
-          makeNotification('assignment', `New work order "${newWo.title}" assigned to ${(prev.users.find((u) => u.id === newWo.assignee) || {}).name || 'a developer'}${project ? ` in ${project.name}` : ''}`, {
-            actor: currentUser?.name || 'Project Manager',
-            date: now,
-            time,
-            projectId: newWo.projectId,
-            workOrderId: newWo.id,
-          }),
-          ...(prev.notifications || []),
-        ],
-        activity: [
-          {
-            id: uid('a'),
-            date: now,
-            time,
-            actor: currentUser?.name || 'Project Manager',
-            projectId: newWo.projectId,
-            text: `created work order "${newWo.title}"${project ? ` in ${project.name}` : ''}`,
-          },
-          ...(prev.activity || []),
-        ],
-      };
-    });
-
-    return id;
   };
 
   const toggleWorkOrderChecklist = (workOrderId, checklistItemId) => {
@@ -1019,8 +1287,14 @@ export function AppProvider({ children }) {
         logout,
         resetDb,
         updatePtd,
+        acceptPtd,
+        rejectPtd,
+        reopenPtdRequest,
         createWorkOrders,
         createSingleWorkOrder,
+        acceptWorkOrder,
+        rejectWorkOrder,
+        reassignWorkOrder,
         updateWorkOrder,
         updateWorkOrderStatus,
         deleteWorkOrder,

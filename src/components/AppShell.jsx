@@ -95,6 +95,13 @@ export default function AppShell({ initialApp = 'dashboard' }) {
   );
   const unread = (db.notifications || []).filter((n) => !n.read).length;
   const chatUnread = (db.messages || []).filter((m) => m.to === currentUser?.id && !m.read).length;
+  const pendingPtds = (db.ptds || []).filter((p) => p.status === 'requested' || p.status === 'pending').length;
+  const pendingWorkOrders =
+    role === 'dev'
+      ? (db.workOrders || []).filter(
+          (w) => w.assignee === currentUser?.id && w.status === 'assigned',
+        ).length
+      : (db.workOrders || []).filter((w) => w.status === 'rejected').length;
 
   const renderView = () => {
     if (activeApp === 'dashboard') {
@@ -221,7 +228,11 @@ export default function AppShell({ initialApp = 'dashboard' }) {
           activeApp={activeApp}
           showApps={showApps}
           dark={dark}
-          badges={{ chat: chatUnread }}
+          badges={{
+            chat: chatUnread,
+            ptds: role === 'pm' ? pendingPtds : 0,
+            workorders: pendingWorkOrders,
+          }}
           onSelectApp={selectApp}
           onToggleApps={() => setShowApps((s) => !s)}
         />

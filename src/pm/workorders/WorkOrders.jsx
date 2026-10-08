@@ -13,11 +13,11 @@ import WorkOrderDetailDrawer from './WorkOrderDetailDrawer.jsx';
 
 const WO_STATUS_FILTERS = [
   { id: 'all', label: 'All' },
-  { id: 'in-progress', label: 'In Progress' },
-  { id: 'submitted-review', label: 'In Review' },
-  { id: 'changes-requested', label: 'Changes Requested' },
+  { id: 'assigned', label: 'Assigned (Pending)' },
   { id: 'not-started', label: 'Not Started' },
+  { id: 'in-progress', label: 'In Progress' },
   { id: 'completed', label: 'Completed' },
+  { id: 'rejected', label: 'Rejected by Dev' },
 ];
 
 function daysUntil(iso) {
@@ -87,14 +87,16 @@ export default function WorkOrders({ dark }) {
   // Overall metrics
   const stats = useMemo(() => {
     const total = workOrders.length;
+    const assigned = workOrders.filter((w) => w.status === 'assigned').length;
+    const notStarted = workOrders.filter((w) => w.status === 'not-started').length;
     const inProgress = workOrders.filter((w) => w.status === 'in-progress').length;
-    const inReview = workOrders.filter((w) => w.status === 'submitted-review').length;
     const completed = workOrders.filter((w) => w.status === 'completed').length;
+    const rejected = workOrders.filter((w) => w.status === 'rejected').length;
     const activeBlockersCount = Object.keys(activeBlockersByWo).length;
     const totalEst = workOrders.reduce((s, w) => s + (w.estimatedHours || 0), 0);
     const totalUsed = workOrders.reduce((s, w) => s + (w.actualHours || 0), 0);
 
-    return { total, inProgress, inReview, completed, activeBlockersCount, totalEst, totalUsed };
+    return { total, assigned, notStarted, inProgress, completed, rejected, activeBlockersCount, totalEst, totalUsed };
   }, [workOrders, activeBlockersByWo]);
 
   const panel = dark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-white/80';
@@ -127,6 +129,38 @@ export default function WorkOrders({ dark }) {
         </div>
       </div>
 
+      {/* Rejection Alert Banner if any rejected tasks */}
+      {stats.rejected > 0 && (
+        <div
+          className={`mb-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-2xl border p-4 transition-all ${
+            dark ? 'border-rose-500/30 bg-rose-500/10 text-rose-200' : 'border-rose-200 bg-rose-50 text-rose-900'
+          }`}
+        >
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/20 text-rose-400">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-bold flex items-center gap-2">
+                <span>{stats.rejected} Work Order{stats.rejected > 1 ? 's' : ''} Rejected by Developer</span>
+                <span className="rounded-full bg-rose-500/20 px-2 py-0.5 text-[10px] font-bold text-rose-400 border border-rose-500/30">
+                  Action Required
+                </span>
+              </div>
+              <p className={`text-xs mt-0.5 ${dark ? 'text-rose-300/80' : 'text-rose-700'}`}>
+                Developers submitted rejection remarks. Review reasons and reassign to another team member.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setStatusFilter(statusFilter === 'rejected' ? 'all' : 'rejected')}
+            className="self-start sm:self-auto rounded-xl bg-rose-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:bg-rose-500 transition-all cursor-pointer whitespace-nowrap"
+          >
+            {statusFilter === 'rejected' ? 'Show All Work Orders' : 'Filter Rejected Work Orders'}
+          </button>
+        </div>
+      )}
+
       {/* Summary KPI Cards */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <div className={`rounded-2xl border p-3.5 ${panel}`}>
@@ -136,15 +170,21 @@ export default function WorkOrders({ dark }) {
         </div>
 
         <div className={`rounded-2xl border p-3.5 ${panel}`}>
-          <div className={`text-[11px] font-medium uppercase tracking-wide ${muted}`}>In Progress</div>
-          <div className="mt-1 text-2xl font-bold tabular-nums text-amber-500">{stats.inProgress}</div>
-          <div className={`mt-0.5 text-[10px] ${muted}`}>active development</div>
+          <div className={`text-[11px] font-medium uppercase tracking-wide ${muted}`}>Pending Dev</div>
+          <div className="mt-1 text-2xl font-bold tabular-nums text-blue-400">{stats.assigned}</div>
+          <div className={`mt-0.5 text-[10px] ${muted}`}>awaiting acceptance</div>
         </div>
 
         <div className={`rounded-2xl border p-3.5 ${panel}`}>
-          <div className={`text-[11px] font-medium uppercase tracking-wide ${muted}`}>In Review</div>
-          <div className="mt-1 text-2xl font-bold tabular-nums text-violet-400">{stats.inReview}</div>
-          <div className={`mt-0.5 text-[10px] ${muted}`}>awaiting PM approval</div>
+          <div className={`text-[11px] font-medium uppercase tracking-wide ${muted}`}>Not Started</div>
+          <div className="mt-1 text-2xl font-bold tabular-nums text-zinc-400">{stats.notStarted}</div>
+          <div className={`mt-0.5 text-[10px] ${muted}`}>accepted, queued</div>
+        </div>
+
+        <div className={`rounded-2xl border p-3.5 ${panel}`}>
+          <div className={`text-[11px] font-medium uppercase tracking-wide ${muted}`}>In Progress</div>
+          <div className="mt-1 text-2xl font-bold tabular-nums text-amber-500">{stats.inProgress}</div>
+          <div className={`mt-0.5 text-[10px] ${muted}`}>active development</div>
         </div>
 
         <div className={`rounded-2xl border p-3.5 ${panel}`}>
@@ -154,17 +194,11 @@ export default function WorkOrders({ dark }) {
         </div>
 
         <div className={`rounded-2xl border p-3.5 ${panel}`}>
-          <div className={`text-[11px] font-medium uppercase tracking-wide ${muted}`}>Blockers</div>
-          <div className={`mt-1 text-2xl font-bold tabular-nums ${stats.activeBlockersCount > 0 ? 'text-red-400' : ''}`}>
-            {stats.activeBlockersCount}
+          <div className={`text-[11px] font-medium uppercase tracking-wide ${muted}`}>Rejected</div>
+          <div className={`mt-1 text-2xl font-bold tabular-nums ${stats.rejected > 0 ? 'text-rose-400 font-extrabold' : ''}`}>
+            {stats.rejected}
           </div>
-          <div className={`mt-0.5 text-[10px] ${muted}`}>impediments active</div>
-        </div>
-
-        <div className={`rounded-2xl border p-3.5 ${panel}`}>
-          <div className={`text-[11px] font-medium uppercase tracking-wide ${muted}`}>Hours Used</div>
-          <div className="mt-1 text-2xl font-bold tabular-nums text-violet-500">{stats.totalUsed}h</div>
-          <div className={`mt-0.5 text-[10px] ${muted}`}>of {stats.totalEst}h estimated</div>
+          <div className={`mt-0.5 text-[10px] ${muted}`}>{stats.rejected > 0 ? 'needs reassignment' : 'none rejected'}</div>
         </div>
       </div>
 
@@ -253,7 +287,7 @@ export default function WorkOrders({ dark }) {
               <th className="px-4 py-3.5 font-semibold">Work Progress</th>
               <th className="px-4 py-3.5 font-semibold">Hours (Used / Est)</th>
               <th className="px-4 py-3.5 font-semibold">Due Date</th>
-              <th className="w-16 px-3 py-3.5 text-right font-semibold">Actions</th>
+              <th className="py-3.5 pl-3 pr-6 sm:pr-8 text-right font-semibold whitespace-nowrap">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/40 dark:divide-zinc-800/60">
@@ -262,7 +296,7 @@ export default function WorkOrders({ dark }) {
               const assignee = usersById[wo.assignee];
               const activeBlocker = activeBlockersByWo[wo.id];
               const daysLeft = daysUntil(wo.dueDate);
-              const isOverdue = wo.status !== 'completed' && daysLeft !== null && daysLeft < 0;
+              const isOverdue = wo.status !== 'completed' && wo.status !== 'rejected' && daysLeft !== null && daysLeft < 0;
 
               const progressPct =
                 wo.status === 'completed' || wo.status === 'done'
@@ -278,20 +312,25 @@ export default function WorkOrders({ dark }) {
                   key={wo.id}
                   onClick={() => setSelectedWoId(wo.id)}
                   className={`cursor-pointer transition-colors ${rowHover} ${
-                    activeBlocker ? 'bg-red-500/5' : ''
+                    activeBlocker ? 'bg-red-500/5' : wo.status === 'rejected' ? 'bg-rose-500/5' : ''
                   }`}
                 >
                   {/* Work Order ID, Title & Blocker indicator */}
                   <td className="px-5 py-3.5">
                     <div className="flex items-start gap-2">
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-mono text-xs font-bold text-violet-500 uppercase">
                             {wo.id}
                           </span>
                           <span className={`font-semibold text-sm ${heading} hover:text-violet-400 transition-colors`}>
                             {wo.title}
                           </span>
+                          {wo.status === 'rejected' && (
+                            <span className="rounded bg-rose-500/15 border border-rose-500/30 px-1.5 py-0.5 text-[10px] font-bold text-rose-400">
+                              Rejected by Dev
+                            </span>
+                          )}
                           {activeBlocker && (
                             <span
                               title={`Blocked: ${activeBlocker.description}`}
@@ -302,11 +341,16 @@ export default function WorkOrders({ dark }) {
                             </span>
                           )}
                         </div>
-                        {wo.description && (
+                        {wo.status === 'rejected' && wo.rejectionRemark ? (
+                          <div className="mt-1 text-xs text-rose-400 font-medium truncate max-w-[320px]">
+                            <span className="font-bold text-rose-500">Reason: </span>
+                            {wo.rejectionRemark}
+                          </div>
+                        ) : wo.description ? (
                           <div className={`mt-0.5 truncate text-xs ${muted} max-w-[280px]`}>
                             {wo.description}
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   </td>
@@ -394,7 +438,7 @@ export default function WorkOrders({ dark }) {
                   </td>
 
                   {/* Action Buttons */}
-                  <td className="px-3 py-3.5 text-right whitespace-nowrap">
+                  <td className="py-3.5 pl-3 pr-6 sm:pr-8 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => setSelectedWoId(wo.id)}
