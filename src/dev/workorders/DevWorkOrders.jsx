@@ -136,8 +136,8 @@ export default function DevWorkOrders({ dark }) {
       inReview: activeWorkOrders.filter((w) => w.status === 'submitted-review').length,
       done: activeWorkOrders.filter(isDone).length,
       overdue: activeWorkOrders.filter(isOverdue).length,
-      hours: activeWorkOrders.reduce((s, w) => s + (w.actualHours || 0), 0),
-      est: activeWorkOrders.reduce((s, w) => s + (w.estimatedHours || 0), 0),
+      hours: Math.round(activeWorkOrders.reduce((s, w) => s + (Number(w.actualHours) || 0), 0) * 100) / 100,
+      est: Math.round(activeWorkOrders.reduce((s, w) => s + (Number(w.estimatedHours) || 0), 0) * 100) / 100,
     }),
     [activeWorkOrders],
   );
@@ -506,7 +506,11 @@ export default function DevWorkOrders({ dark }) {
               <div
                 className={`flex flex-col items-center justify-center rounded-2xl border py-16 text-center shadow-sm backdrop-blur-md ${panel}`}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900 text-zinc-500">
+                <div
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${
+                    dark ? 'border-zinc-800 bg-zinc-900 text-zinc-500' : 'border-zinc-200 bg-white text-zinc-400 shadow-sm'
+                  }`}
+                >
                   <Inbox className="h-6 w-6" />
                 </div>
                 <h3 className={`mt-3 text-sm font-semibold ${heading}`}>No Pending Work Order Assignments</h3>
@@ -654,7 +658,13 @@ export default function DevWorkOrders({ dark }) {
                 key={k.label}
                 className={`flex items-center gap-3 rounded-2xl border p-3 shadow-sm backdrop-blur-md transition-colors ${panel}`}
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/80">
+                <div
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border ${
+                    dark
+                      ? 'border-zinc-800 bg-zinc-900/80'
+                      : 'border-zinc-200/80 bg-white shadow-xs'
+                  }`}
+                >
                   <k.icon className={`h-4 w-4 ${k.accent}`} />
                 </div>
                 <div className="min-w-0">
@@ -766,6 +776,23 @@ export default function DevWorkOrders({ dark }) {
                         {wo.id}
                       </span>
                       <WoStatusBadge status={wo.status} />
+                      {(() => {
+                        try {
+                          const raw = localStorage.getItem(`project-soft:timer:${wo.id}`);
+                          if (raw) {
+                            const p = JSON.parse(raw);
+                            if (p.isRunning || p.seconds > 0) {
+                              return (
+                                <span className="flex items-center gap-1 rounded-full border border-orange-500/40 bg-orange-500/15 px-2 py-0.5 text-[10px] font-bold text-orange-400 animate-pulse">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
+                                  Timer Active
+                                </span>
+                              );
+                            }
+                          }
+                        } catch {}
+                        return null;
+                      })()}
                     </div>
                     <PriorityBadge priority={wo.priority} />
                   </div>
@@ -800,7 +827,7 @@ export default function DevWorkOrders({ dark }) {
                     <span className={`flex items-center gap-1 tabular-nums ${muted}`}>
                       <Clock className="h-3 w-3 text-zinc-500" />
                       <span>
-                        <strong className={heading}>{wo.actualHours || 0}h</strong> / {wo.estimatedHours || 0}h
+                        <strong className={heading}>{Math.round((Number(wo.actualHours) || 0) * 100) / 100}h</strong> / {wo.estimatedHours || 0}h
                       </span>
                     </span>
 
@@ -836,7 +863,11 @@ export default function DevWorkOrders({ dark }) {
               <div
                 className={`col-span-full flex flex-col items-center justify-center rounded-2xl border py-16 text-center shadow-sm backdrop-blur-md ${panel}`}
               >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-zinc-800 bg-zinc-900 text-zinc-500">
+                <div
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${
+                    dark ? 'border-zinc-800 bg-zinc-900 text-zinc-500' : 'border-zinc-200 bg-white text-zinc-400 shadow-sm'
+                  }`}
+                >
                   <ListTodo className="h-6 w-6" />
                 </div>
                 <h3 className={`mt-3 text-sm font-semibold ${heading}`}>No Active Tasks Found</h3>

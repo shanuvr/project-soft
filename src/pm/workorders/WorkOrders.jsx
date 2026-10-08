@@ -93,8 +93,8 @@ export default function WorkOrders({ dark }) {
     const completed = workOrders.filter((w) => w.status === 'completed').length;
     const rejected = workOrders.filter((w) => w.status === 'rejected').length;
     const activeBlockersCount = Object.keys(activeBlockersByWo).length;
-    const totalEst = workOrders.reduce((s, w) => s + (w.estimatedHours || 0), 0);
-    const totalUsed = workOrders.reduce((s, w) => s + (w.actualHours || 0), 0);
+    const totalEst = Math.round(workOrders.reduce((s, w) => s + (Number(w.estimatedHours) || 0), 0) * 100) / 100;
+    const totalUsed = Math.round(workOrders.reduce((s, w) => s + (Number(w.actualHours) || 0), 0) * 100) / 100;
 
     return { total, assigned, notStarted, inProgress, completed, rejected, activeBlockersCount, totalEst, totalUsed };
   }, [workOrders, activeBlockersByWo]);
@@ -415,7 +415,7 @@ export default function WorkOrders({ dark }) {
                   {/* Hours (Actual vs Est) */}
                   <td className="px-4 py-3.5 whitespace-nowrap tabular-nums">
                     <div className="text-xs">
-                      <strong className="text-violet-500 font-bold">{wo.actualHours || 0}h</strong>
+                      <strong className="text-violet-500 font-bold">{Math.round((Number(wo.actualHours) || 0) * 100) / 100}h</strong>
                       <span className={muted}> / {wo.estimatedHours}h</span>
                     </div>
                   </td>

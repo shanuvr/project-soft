@@ -82,8 +82,8 @@ export default function WorkOrderKanban({
     <div className="flex w-full gap-4 overflow-x-auto pb-6 pt-1">
       {COLUMN_DEFS.map((col) => {
         const colWos = workOrders.filter((w) => w.status === col.id);
-        const colEstimated = colWos.reduce((s, w) => s + (w.estimatedHours || 0), 0);
-        const colActual = colWos.reduce((s, w) => s + (w.actualHours || 0), 0);
+        const colEstimated = Math.round(colWos.reduce((s, w) => s + (Number(w.estimatedHours) || 0), 0) * 100) / 100;
+        const colActual = Math.round(colWos.reduce((s, w) => s + (Number(w.actualHours) || 0), 0) * 100) / 100;
 
         return (
           <div
@@ -250,7 +250,7 @@ export default function WorkOrderKanban({
                     <div className="mt-3">
                       <div className="mb-1 flex items-center justify-between text-[11px]">
                         <span className={`tabular-nums ${mutedText}`}>
-                          <strong className={headingText}>{wo.actualHours || 0}h</strong> /{' '}
+                          <strong className={headingText}>{Math.round((Number(wo.actualHours) || 0) * 100) / 100}h</strong> /{' '}
                           {wo.estimatedHours}h
                         </span>
                         <span

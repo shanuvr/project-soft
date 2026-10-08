@@ -41,7 +41,9 @@ export default function WorkOrderDetailDrawer({
 
   const isPm = currentUser?.role === 'pm' || currentUser?.role === 'admin';
 
-  const remainingHours = Math.max(0, (wo.estimatedHours || 0) - (wo.actualHours || 0));
+  const estHours = Math.round((Number(wo.estimatedHours) || 0) * 100) / 100;
+  const actHours = Math.round((Number(wo.actualHours) || 0) * 100) / 100;
+  const remainingHours = Math.max(0, Math.round((estHours - actHours) * 100) / 100);
 
   const borderCls = dark ? 'border-zinc-800' : 'border-zinc-200';
   const bgPanel = dark ? 'bg-zinc-900/95 text-zinc-100' : 'bg-white text-zinc-800';
@@ -286,13 +288,13 @@ export default function WorkOrderDetailDrawer({
               <div className={`rounded-xl border p-3 text-center ${borderCls}`}>
                 <span className={`text-[11px] ${mutedText}`}>Estimated</span>
                 <div className={`mt-1 text-xl font-bold tabular-nums ${headingText}`}>
-                  {wo.estimatedHours || 0}h
+                  {estHours}h
                 </div>
               </div>
               <div className={`rounded-xl border p-3 text-center ${borderCls}`}>
                 <span className={`text-[11px] ${mutedText}`}>Logged</span>
                 <div className="mt-1 text-xl font-bold tabular-nums text-violet-500">
-                  {wo.actualHours || 0}h
+                  {actHours}h
                 </div>
               </div>
               <div className={`rounded-xl border p-3 text-center ${borderCls}`}>

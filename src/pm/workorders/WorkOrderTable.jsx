@@ -255,7 +255,7 @@ export default function WorkOrderTable({
                     <div className="w-28">
                       <div className="mb-1 flex items-center justify-between text-[11px] tabular-nums">
                         <span className={headingText}>
-                          <strong>{wo.actualHours || 0}h</strong> / {wo.estimatedHours}h
+                          <strong>{Math.round((Number(wo.actualHours) || 0) * 100) / 100}h</strong> / {wo.estimatedHours}h
                         </span>
                         <span
                           className={`font-semibold ${

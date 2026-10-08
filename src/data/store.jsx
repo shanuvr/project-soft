@@ -719,7 +719,7 @@ export function AppProvider({ children }) {
   };
 
   const logHours = (workOrderId, hours, note = '') => {
-    const hrs = Number(hours) || 0;
+    const hrs = Math.round((Number(hours) || 0) * 100) / 100;
     if (hrs <= 0) return;
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -728,10 +728,12 @@ export function AppProvider({ children }) {
 
     setDb((prev) => {
       const updatedWorkOrders = prev.workOrders.map((w) =>
-        w.id === workOrderId ? { ...w, actualHours: (w.actualHours || 0) + hrs } : w,
+        w.id === workOrderId
+          ? { ...w, actualHours: Math.round(((Number(w.actualHours) || 0) + hrs) * 100) / 100 }
+          : w,
       );
       const ptdWos = updatedWorkOrders.filter((w) => w.ptdId === targetWo.ptdId);
-      const usedHours = ptdWos.reduce((s, w) => s + (w.actualHours || 0), 0);
+      const usedHours = Math.round(ptdWos.reduce((s, w) => s + (Number(w.actualHours) || 0), 0) * 100) / 100;
 
       return {
         ...prev,
