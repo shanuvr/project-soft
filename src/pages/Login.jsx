@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../data/context.js';
 
@@ -12,19 +12,27 @@ const BOOT_LINES = [
 ];
 
 function TermInput({ value, onChange, onEnter, secret = false, autoFocus = false, ref: refProp }) {
+  const [isFocused, setIsFocused] = useState(false);
   const display = secret ? '•'.repeat(value.length) : value;
+
   return (
     <span
       className="relative inline-block align-middle cursor-text"
       style={{ minWidth: '1ch' }}
-      onClick={() => refProp.current && refProp.current.focus()}
+      onClick={() => refProp?.current?.focus()}
     >
       <span className="invisible whitespace-pre" style={{ minWidth: '1ch' }}>
         {display || ' '}
       </span>
-      <span className="absolute inset-y-0 left-0 whitespace-pre text-zinc-100">
+      <span className="absolute inset-y-0 left-0 whitespace-pre text-zinc-100 pointer-events-none">
         {display}
-        <span className="terminal-cursor text-zinc-100 inline-block select-none">▉</span>
+        <span
+          className={`inline-block select-none ${
+            isFocused ? 'terminal-cursor text-zinc-100' : 'text-zinc-600'
+          }`}
+        >
+          {isFocused ? '▉' : '░'}
+        </span>
       </span>
       <input
         ref={refProp}
@@ -32,10 +40,12 @@ function TermInput({ value, onChange, onEnter, secret = false, autoFocus = false
         value={value}
         onChange={onChange}
         onKeyDown={onEnter}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
         autoFocus={autoFocus}
         autoComplete={secret ? 'current-password' : 'username'}
         spellCheck={false}
-        className="absolute inset-0 h-full w-full bg-transparent text-transparent caret-transparent outline-none"
+        className="absolute inset-0 h-full w-full bg-transparent text-transparent caret-transparent outline-none cursor-text"
       />
     </span>
   );
@@ -62,6 +72,12 @@ export default function Login() {
   const passwordRef = useRef(null);
   const endRef = useRef(null);
 
+  const focusActiveInput = useCallback(() => {
+    if (booting || leaving || step === 'authenticating') return;
+    const target = step === 'username' ? usernameRef.current : passwordRef.current;
+    target?.focus();
+  }, [booting, leaving, step]);
+
   // Stream the boot lines, then hand control to the login prompt.
   useEffect(() => {
     const timers = [];
@@ -73,7 +89,6 @@ export default function Login() {
       const showNext = () => {
         if (i >= BOOT_LINES.length) {
           setBooting(false);
-          timers.push(setTimeout(() => usernameRef.current && usernameRef.current.focus(), 60));
           return;
         }
         const target = BOOT_LINES[i];
@@ -90,6 +105,28 @@ export default function Login() {
     timers.push(startTimer);
     return () => timers.forEach((t) => clearTimeout(t));
   }, []);
+
+  // Ensure active input is focused as soon as booting finishes or step transitions.
+  useEffect(() => {
+    if (!booting) {
+      focusActiveInput();
+    }
+  }, [booting, focusActiveInput]);
+
+  // Keep terminal focused when typing anywhere on the page.
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      if (booting || leaving || step === 'authenticating') return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Escape', 'Tab'].includes(e.key)) return;
+
+      focusActiveInput();
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [booting, step, leaving, focusActiveInput]);
 
   // Keep the last line in view.
   useEffect(() => {
@@ -115,21 +152,22 @@ export default function Login() {
     return () => clearInterval(interval);
   }, [step, navigate, routeTarget]);
 
-  const focusUsername = () => {
-    setTimeout(() => usernameRef.current && usernameRef.current.focus(), 40);
+  const handleContainerClick = () => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) return;
+    focusActiveInput();
   };
 
   const handleUsernameEnter = (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
     if (!username.trim()) {
-      focusUsername();
+      focusActiveInput();
       return;
     }
     setPromptUser(username.trim());
     setLoginHistory((prev) => [...prev, { type: 'login', text: username.trim() }]);
     setStep('password');
-    setTimeout(() => passwordRef.current && passwordRef.current.focus(), 40);
   };
 
   const handlePasswordEnter = (e) => {
@@ -148,7 +186,6 @@ export default function Login() {
       setUsername('');
       setPassword('');
       setStep('username');
-      focusUsername();
       return;
     }
 
@@ -159,7 +196,10 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-full w-full bg-[#050505] text-zinc-300 font-mono text-[14px] leading-relaxed p-4 sm:p-6 flex flex-col select-text">
+    <div
+      className="min-h-full w-full bg-[#050505] text-zinc-300 font-mono text-[14px] leading-relaxed p-4 sm:p-6 flex flex-col select-text cursor-text"
+      onClick={handleContainerClick}
+    >
       {/* Terminal scrollback */}
       <div className="max-w-3xl mx-auto w-full flex-1 overflow-y-auto">
         {/* Boot sequence keeps scrolling, data always stays on screen */}
@@ -212,7 +252,10 @@ export default function Login() {
 
         {/* Interactive login prompt */}
         {!booting && step === 'username' && (
-          <div className="whitespace-pre-wrap break-words">
+          <div
+            className="whitespace-pre-wrap break-words cursor-text"
+            onClick={focusActiveInput}
+          >
             <span className="text-zinc-100">project-soft login:&nbsp;</span>
             <TermInput
               ref={usernameRef}
@@ -225,19 +268,20 @@ export default function Login() {
         )}
 
         {!booting && step === 'password' && (
-          <>
-            <div className="whitespace-pre-wrap break-words">
-              <span className="text-zinc-100">Password:&nbsp;</span>
-              <TermInput
-                ref={passwordRef}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onEnter={handlePasswordEnter}
-                secret
-                autoFocus
-              />
-            </div>
-          </>
+          <div
+            className="whitespace-pre-wrap break-words cursor-text"
+            onClick={focusActiveInput}
+          >
+            <span className="text-zinc-100">Password:&nbsp;</span>
+            <TermInput
+              ref={passwordRef}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onEnter={handlePasswordEnter}
+              secret
+              autoFocus
+            />
+          </div>
         )}
 
         {!booting && step === 'authenticating' && (
