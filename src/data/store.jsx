@@ -79,14 +79,96 @@ export function AppProvider({ children }) {
   }, [db]);
 
 
-  const login = (username, password) => {
-    const user = db.users.find(
-      (u) => u.username === username.trim().toLowerCase() && u.password === password,
+  const login = async (username, password) => {
+    const trimmedUser = (username || '').trim();
+    const coreUrl = (import.meta.env.VITE_CORE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
+    let coreError = null;
+    try {
+      const response = await fetch(`${coreUrl}/api/auth/token/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: trimmedUser,
+          password: password,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const coreUser = data.user || {};
+        const enabledApps = coreUser.enabled_apps || [];
+        const hasAccess = enabledApps.includes('project-soft') || coreUser.is_superuser;
+
+        if (!hasAccess) {
+          throw new Error('Your account does not have access to Project Soft. Contact your administrator.');
+        }
+
+        const grant = (coreUser.app_access || []).find((a) => a.app === 'project-soft');
+        let roleName = (grant?.role || '').toLowerCase();
+        if (!roleName && coreUser.is_superuser) {
+          roleName = 'project manager';
+        }
+
+        const isPm = roleName.includes('manager') || roleName === 'pm';
+        const role = isPm ? 'pm' : 'dev';
+        const title = isPm ? 'Project Manager' : 'Developer';
+
+        const user = {
+          id: `core-${coreUser.id}`,
+          core_id: coreUser.id,
+          username: coreUser.email,
+          name: coreUser.name || coreUser.email,
+          email: coreUser.email,
+          role,
+          title,
+          token: data.access,
+          refresh: data.refresh,
+        };
+
+        setCurrentUser(user);
+        writeKey(SESSION_KEY, user);
+
+        setDb((prev) => {
+          if (prev.users.some((u) => u.id === user.id || u.email === user.email)) {
+            return prev;
+          }
+          return {
+            ...prev,
+            users: [...prev.users, user],
+          };
+        });
+
+        return user;
+      } else {
+        const errJson = await response.json().catch(() => null);
+        const detail = errJson?.detail;
+        if (detail && !detail.toLowerCase().includes('no active account')) {
+          coreError = new Error(detail);
+        }
+      }
+    } catch (err) {
+      if (err.message && (err.message.includes('does not have access') || err.message.includes('Account is inactive'))) {
+        throw err;
+      }
+      coreError = err;
+    }
+
+    // Fallback: check local demo users (e.g. admin, rahul)
+    const localUser = db.users.find(
+      (u) => u.username === trimmedUser.toLowerCase() && u.password === password,
     );
-    if (!user) return null;
-    setCurrentUser(user);
-    writeKey(SESSION_KEY, user);
-    return user;
+    if (localUser) {
+      setCurrentUser(localUser);
+      writeKey(SESSION_KEY, localUser);
+      return localUser;
+    }
+
+    if (coreError && coreError.message && !coreError.message.includes('fetch')) {
+      throw coreError;
+    }
+
+    throw new Error('Invalid username or password');
   };
 
   const logout = () => {

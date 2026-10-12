@@ -170,29 +170,32 @@ export default function Login() {
     setStep('password');
   };
 
-  const handlePasswordEnter = (e) => {
+  const handlePasswordEnter = async (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
 
-    const user = login(promptUser, password);
+    try {
+      const user = await login(promptUser, password);
+      if (!user) {
+        throw new Error('Invalid username or password');
+      }
 
-    if (!user) {
+      setLoginHistory((prev) => [...prev, { type: 'password', length: password.length }]);
+      setRouteTarget(`/${user.role}/apps/dashboard`);
+      setAuthDots(0);
+      setStep('authenticating');
+    } catch (err) {
+      const msg = err.message || 'Invalid username or password';
       setLoginHistory((prev) => [
         ...prev,
         { type: 'password', length: password.length },
-        { type: 'error', text: 'Error: Invalid username or password' },
+        { type: 'error', text: msg.startsWith('Error:') ? msg : `Error: ${msg}` },
         { type: 'blank' },
       ]);
       setUsername('');
       setPassword('');
       setStep('username');
-      return;
     }
-
-    setLoginHistory((prev) => [...prev, { type: 'password', length: password.length }]);
-    setRouteTarget(`/${user.role}/apps/dashboard`);
-    setAuthDots(0);
-    setStep('authenticating');
   };
 
   return (
