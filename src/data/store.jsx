@@ -188,12 +188,96 @@ export function AppProvider({ children }) {
     }));
   };
 
+  const syncDecisionToAccounts = async (target, action, remark = '') => {
+    const ptdId = target?.ptdId || target?.id;
+    const orderId = target?.orderId;
+    const accountsUrl = (import.meta.env.VITE_ACCOUNTS_API_URL || 'http://127.0.0.1:8001').replace(/\/$/, '');
+    try {
+      await fetch(`${accountsUrl}/api/ptda/external-decision/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ptdId,
+          orderId,
+          action,
+          remark,
+          decidedBy: currentUser?.name || 'Project Manager',
+        }),
+      });
+    } catch (err) {
+      console.warn('[project-soft] Failed to sync decision to accounts soft:', err);
+    }
+  };
+
+  // Sync incoming PTD requests from Account Soft
+  useEffect(() => {
+    const fetchIncomingFromAccounts = async () => {
+      const accountsUrl = (import.meta.env.VITE_ACCOUNTS_API_URL || 'http://127.0.0.1:8001').replace(/\/$/, '');
+      try {
+        const res = await fetch(`${accountsUrl}/api/ptda/external-requests/`);
+        if (!res.ok) return;
+        const incoming = await res.json();
+        if (!Array.isArray(incoming) || !incoming.length) return;
+
+        setDb((prev) => {
+          let hasChanges = false;
+          const currentPtds = [...(prev.ptds || [])];
+
+          incoming.forEach((item) => {
+            const idx = currentPtds.findIndex((p) => p.id === item.id || (p.orderId && p.orderId === item.orderId));
+            if (idx >= 0) {
+              const existing = currentPtds[idx];
+              if (
+                existing.status !== item.status ||
+                existing.rejectionRemark !== item.rejectionRemark ||
+                existing.decisionStatus !== item.decisionStatus
+              ) {
+                currentPtds[idx] = {
+                  ...existing,
+                  ...item,
+                  status: item.status,
+                  rejectionRemark: item.rejectionRemark,
+                  decisionStatus: item.decisionStatus,
+                  client: item.client || existing.client,
+                  name: item.name || existing.name,
+                };
+                hasChanges = true;
+              }
+            } else {
+              currentPtds.unshift({
+                ...item,
+                projectId: null,
+              });
+              hasChanges = true;
+            }
+          });
+
+          if (!hasChanges) return prev;
+          return {
+            ...prev,
+            ptds: currentPtds,
+          };
+        });
+      } catch (err) {
+        // Accounts soft might be offline
+      }
+    };
+
+    fetchIncomingFromAccounts();
+    const timer = setInterval(fetchIncomingFromAccounts, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
   const acceptPtd = (id) => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const target = (db.ptds || []).find((p) => p.id === id);
+    if (target) {
+      syncDecisionToAccounts(target, 'accept');
+    }
     setDb((prev) => {
-      const target = prev.ptds.find((p) => p.id === id);
-      if (!target) return prev;
+      const t = prev.ptds.find((p) => p.id === id);
+      if (!t) return prev;
       return {
         ...prev,
         ptds: prev.ptds.map((p) =>
@@ -210,12 +294,12 @@ export function AppProvider({ children }) {
         notifications: [
           makeNotification(
             'approval',
-            `PTD "${target.ref} · ${target.name}" was accepted by PM ${currentUser?.name || ''}`,
+            `PTD "${t.ref} · ${t.name}" was accepted by PM ${currentUser?.name || ''}`,
             {
               actor: currentUser?.name || 'Project Manager',
               date: today,
               time,
-              projectId: target.projectId || null,
+              projectId: t.projectId || null,
             },
           ),
           ...(prev.notifications || []),
@@ -226,8 +310,8 @@ export function AppProvider({ children }) {
             date: today,
             time,
             actor: currentUser?.name || 'Project Manager',
-            text: `accepted incoming PTD "${target.ref} · ${target.name}" from external system`,
-            projectId: target.projectId || null,
+            text: `accepted incoming PTD "${t.ref} · ${t.name}" from external system`,
+            projectId: t.projectId || null,
           },
           ...(prev.activity || []),
         ],
@@ -238,10 +322,14 @@ export function AppProvider({ children }) {
   const rejectPtd = (id, remark = '') => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const target = (db.ptds || []).find((p) => p.id === id);
+    const cleanRemark = remark.trim() || 'No specific remark provided.';
+    if (target) {
+      syncDecisionToAccounts(target, 'reject', cleanRemark);
+    }
     setDb((prev) => {
-      const target = prev.ptds.find((p) => p.id === id);
-      if (!target) return prev;
-      const cleanRemark = remark.trim() || 'No specific remark provided.';
+      const t = prev.ptds.find((p) => p.id === id);
+      if (!t) return prev;
       return {
         ...prev,
         ptds: prev.ptds.map((p) =>
@@ -258,12 +346,12 @@ export function AppProvider({ children }) {
         notifications: [
           makeNotification(
             'issue',
-            `PTD "${target.ref} · ${target.name}" was rejected by PM (${cleanRemark})`,
+            `PTD "${t.ref} · ${t.name}" was rejected by PM (${cleanRemark})`,
             {
               actor: currentUser?.name || 'Project Manager',
               date: today,
               time,
-              projectId: target.projectId || null,
+              projectId: t.projectId || null,
             },
           ),
           ...(prev.notifications || []),
@@ -274,8 +362,8 @@ export function AppProvider({ children }) {
             date: today,
             time,
             actor: currentUser?.name || 'Project Manager',
-            text: `rejected incoming PTD "${target.ref} · ${target.name}" (Remark: ${cleanRemark})`,
-            projectId: target.projectId || null,
+            text: `rejected incoming PTD "${t.ref} · ${t.name}" (Remark: ${cleanRemark})`,
+            projectId: t.projectId || null,
           },
           ...(prev.activity || []),
         ],
@@ -284,6 +372,10 @@ export function AppProvider({ children }) {
   };
 
   const reopenPtdRequest = (id) => {
+    const target = (db.ptds || []).find((p) => p.id === id);
+    if (target) {
+      syncDecisionToAccounts(target, 'reopen');
+    }
     setDb((prev) => ({
       ...prev,
       ptds: prev.ptds.map((p) =>

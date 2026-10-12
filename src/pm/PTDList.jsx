@@ -538,7 +538,7 @@ export default function PTDList({ dark, onOpen }) {
                       </div>
                     </td>
                     <td className={`px-4 py-3 ${muted}`}>
-                      {p.projectId ? projectsById[p.projectId]?.name || '—' : 'Unassigned'}
+                      {p.projectId ? projectsById[p.projectId]?.name || '—' : (p.client ? `${p.client}` : 'Unassigned')}
                     </td>
                     <td className="px-4 py-3 tabular-nums">
                       <div className={muted}>
