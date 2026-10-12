@@ -142,7 +142,8 @@ export function AppProvider({ children }) {
         return user;
       } else {
         const errJson = await response.json().catch(() => null);
-        const detail = errJson?.detail;
+        const raw = errJson?.detail ?? errJson?.non_field_errors ?? errJson?.message ?? errJson?.error ?? (errJson && typeof errJson === 'object' ? Object.values(errJson).flat() : '');
+        const detail = Array.isArray(raw) ? raw.map((x) => (typeof x === 'string' ? x : x?.message || '')).filter(Boolean).join(' ') : (typeof raw === 'string' ? raw : '');
         if (detail && !detail.toLowerCase().includes('no active account')) {
           coreError = new Error(detail);
         }
@@ -164,7 +165,7 @@ export function AppProvider({ children }) {
       return localUser;
     }
 
-    if (coreError && coreError.message && !coreError.message.includes('fetch')) {
+    if (coreError && coreError.message && !coreError.message.includes('fetch') && !(coreError instanceof TypeError)) {
       throw coreError;
     }
 
