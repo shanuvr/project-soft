@@ -62,7 +62,8 @@ export default function DetailedPtd({ dark, ptdId, onBack }) {
     );
   }
 
-  const devs = db.users.filter((u) => u.role === 'dev');
+  const coreDevs = db.users.filter((u) => u.role === 'dev' && u.id?.startsWith('core-'));
+  const devs = coreDevs.length > 0 ? coreDevs : db.users.filter((u) => u.role === 'dev');
   const usersById = Object.fromEntries(db.users.map((u) => [u.id, u]));
   const woList = db.workOrders.filter((w) => w.ptdId === ptdId);
 

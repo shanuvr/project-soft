@@ -292,6 +292,39 @@ export function AppProvider({ children }) {
     fetchWorkOrdersFromDb();
   }, []);
 
+  // Fetch real developers from SystemSoft Core
+  useEffect(() => {
+    const fetchDevelopers = async () => {
+      try {
+        const res = await fetch('/api/developers/');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setDb((prev) => {
+            const currentUsers = [...(prev.users || [])];
+            data.forEach((dev) => {
+              const existingIndex = currentUsers.findIndex(
+                (u) => u.id === dev.id || u.email?.toLowerCase() === dev.email?.toLowerCase()
+              );
+              if (existingIndex >= 0) {
+                currentUsers[existingIndex] = { ...currentUsers[existingIndex], ...dev };
+              } else {
+                currentUsers.push(dev);
+              }
+            });
+            return {
+              ...prev,
+              users: currentUsers,
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('[project-soft] Failed to fetch developers from SystemSoft Core:', err);
+      }
+    };
+    fetchDevelopers();
+  }, []);
+
   const acceptPtd = (id) => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
