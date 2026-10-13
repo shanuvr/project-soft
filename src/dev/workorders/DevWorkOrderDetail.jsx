@@ -52,11 +52,23 @@ function formatTimer(seconds) {
   return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
+function formatNaturalDuration(seconds) {
+  if (!seconds || seconds <= 0) return '0s';
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  const parts = [];
+  if (hrs > 0) parts.push(`${hrs}h`);
+  if (mins > 0) parts.push(`${mins}m`);
+  if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
+  return parts.join(' ');
+}
+
 function formatHours(val) {
   if (val === null || val === undefined || isNaN(val)) return '0h';
   const num = Number(val);
   const rounded = Math.round(num * 100) / 100;
-  return Number.isInteger(rounded) ? `${rounded}h` : `${rounded}h`;
+  return `${rounded}h`;
 }
 
 function dueLabel(left, overdue) {
@@ -123,11 +135,23 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
   const [logSuccess, setLogSuccess] = useState(false);
   const [logSuccessMsg, setLogSuccessMsg] = useState('');
 
-  // Automated Stopwatch Timer state with persistence
-  const TIMER_KEY = `project-soft:timer:${wo.id}`;
+  // Automated Stopwatch Timer state with backend & multi-tab persistence
+  const [activeTimerConflict, setActiveTimerConflict] = useState(null);
   const [timerState, setTimerState] = useState(() => {
+    // Check if workorder has active_timer from backend
+    const serverTimer = wo.activeTimer || {};
+    if (serverTimer.isRunning && serverTimer.startedAt) {
+      const nowTs = Math.floor(Date.now() / 1000);
+      const elapsed = Math.max(0, nowTs - serverTimer.startedAt);
+      return {
+        isRunning: true,
+        seconds: (serverTimer.accumulatedSeconds || 0) + elapsed,
+        lastStart: Date.now(),
+      };
+    }
+    // Fallback to local storage if present
     try {
-      const raw = localStorage.getItem(TIMER_KEY);
+      const raw = localStorage.getItem(`project-soft:timer:${wo.id}`);
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed.isRunning && parsed.lastStart) {
@@ -146,6 +170,48 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
     return { isRunning: false, seconds: 0, lastStart: null };
   });
 
+  // Listen to cross-tab storage changes
+  useEffect(() => {
+    const handleStorage = (e) => {
+      if (e.key === `project-soft:timer:${wo.id}`) {
+        try {
+          if (!e.newValue) {
+            setTimerState({ isRunning: false, seconds: 0, lastStart: null });
+          } else {
+            const parsed = JSON.parse(e.newValue);
+            if (parsed.isRunning && parsed.lastStart) {
+              const elapsed = Math.floor((Date.now() - parsed.lastStart) / 1000);
+              setTimerState({
+                isRunning: true,
+                seconds: (parsed.seconds || 0) + elapsed,
+                lastStart: Date.now(),
+              });
+            } else {
+              setTimerState({ isRunning: false, seconds: parsed.seconds || 0, lastStart: null });
+            }
+          }
+        } catch {
+          /* ignore error */
+        }
+      } else if (e.key === 'project-soft:global-active-timer') {
+        try {
+          if (e.newValue) {
+            const parsed = JSON.parse(e.newValue);
+            if (parsed.workOrderId !== wo.id && parsed.userId === (currentUser?.id || 'dev')) {
+              // Another work order timer was started in another tab! Pause current timer here
+              setTimerState((prev) => ({ ...prev, isRunning: false }));
+              setActiveTimerConflict(`Timer was switched to ${parsed.workOrderId} in another window.`);
+            }
+          }
+        } catch {
+          /* ignore error */
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [wo.id, currentUser?.id]);
+
   useEffect(() => {
     let interval = null;
     if (timerState.isRunning) {
@@ -154,7 +220,7 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
           const nextSecs = prev.seconds + 1;
           const nextObj = { isRunning: true, seconds: nextSecs, lastStart: Date.now() };
           try {
-            localStorage.setItem(TIMER_KEY, JSON.stringify(nextObj));
+            localStorage.setItem(`project-soft:timer:${wo.id}`, JSON.stringify(nextObj));
           } catch {
             /* ignore storage write error */
           }
@@ -165,20 +231,46 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [timerState.isRunning, wo.id, TIMER_KEY]);
+  }, [timerState.isRunning, wo.id]);
 
-  // Live session calculated hours
+  // Live session calculated hours in true real-time (2 decimal places)
   const calculatedHours = useMemo(() => {
-    if (timerState.seconds === 0) return 0;
-    if (timerState.seconds < 60) return 0.05; // minimum preview
+    if (timerState.seconds <= 0) return 0;
     return +(timerState.seconds / 3600).toFixed(2);
   }, [timerState.seconds]);
 
-  const handleStartTimer = () => {
+  const handleStartTimer = async () => {
+    setActiveTimerConflict(null);
+    const userId = currentUser?.id || wo.assignee || 'dev';
+    const nowTs = Math.floor(Date.now() / 1000);
+
+    // Call backend start-timer endpoint to persist & automatically pause other workorder timers for this user
+    try {
+      const res = await fetch(`/api/work-orders/${wo.id}/start-timer/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, startedAt: nowTs }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.stoppedOtherTimers?.length) {
+          data.stoppedOtherTimers.forEach((otherId) => {
+            localStorage.removeItem(`project-soft:timer:${otherId}`);
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[project-soft] Failed to sync start-timer with backend:', err);
+    }
+
     const nextObj = { isRunning: true, seconds: timerState.seconds, lastStart: Date.now() };
     setTimerState(nextObj);
     try {
-      localStorage.setItem(TIMER_KEY, JSON.stringify(nextObj));
+      localStorage.setItem(`project-soft:timer:${wo.id}`, JSON.stringify(nextObj));
+      localStorage.setItem(
+        'project-soft:global-active-timer',
+        JSON.stringify({ workOrderId: wo.id, userId, startedAt: Date.now() }),
+      );
     } catch {
       /* ignore storage write error */
     }
@@ -196,12 +288,28 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
     setShowStopModal(true);
   };
 
-  const handleConfirmStopAndLog = () => {
-    const hrsToLog = frozenSession.hours > 0 ? frozenSession.hours : (timerState.seconds > 0 ? calculatedHours : 0);
+  const handleConfirmStopAndLog = async () => {
+    const finalSecs = frozenSession.seconds || timerState.seconds;
+    const hrsToLog = frozenSession.hours > 0 ? frozenSession.hours : calculatedHours;
     const finalProgress = sessionProgress;
     const finalNote = sessionNote.trim();
-    const formattedDuration = formatTimer(frozenSession.seconds || timerState.seconds);
+    const formattedDuration = formatNaturalDuration(finalSecs);
 
+    // 1. Persist stop timer & log hours to backend MySQL
+    try {
+      await fetch(`/api/work-orders/${wo.id}/stop-timer/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hours: hrsToLog,
+          progress: finalProgress,
+        }),
+      });
+    } catch (err) {
+      console.warn('[project-soft] Failed to sync stop-timer with backend:', err);
+    }
+
+    // 2. Update local state store
     if (hrsToLog > 0) {
       logHours(wo.id, hrsToLog, finalNote || `Automated Live Timer (${formattedDuration})`);
     }
@@ -209,14 +317,20 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
       updateWorkOrder(wo.id, { progress: finalProgress });
       setNewProgress(finalProgress);
     }
+
     setTimerState({ isRunning: false, seconds: 0, lastStart: null });
     try {
-      localStorage.removeItem(TIMER_KEY);
+      localStorage.removeItem(`project-soft:timer:${wo.id}`);
+      const globalActive = localStorage.getItem('project-soft:global-active-timer');
+      if (globalActive && JSON.parse(globalActive).workOrderId === wo.id) {
+        localStorage.removeItem('project-soft:global-active-timer');
+      }
     } catch {
       /* ignore storage remove error */
     }
+
     setShowStopModal(false);
-    setLogSuccessMsg(`Successfully logged ${hrsToLog}h (${formattedDuration}) & updated progress to ${finalProgress}%!`);
+    setLogSuccessMsg(`Successfully logged ${formattedDuration} (${hrsToLog}h) & updated progress to ${finalProgress}%!`);
     setLogSuccess(true);
     setNote('');
     setSessionNote('');
@@ -431,13 +545,18 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
                       <div className="mt-1.5 text-xs text-zinc-400">
                         {timerState.seconds > 0 ? (
                           <span>
-                            Logged on Stop: <strong className="font-bold text-violet-400">+{calculatedHours}h</strong> (
-                            {Math.round(timerState.seconds / 60)} mins)
+                            Logged on Stop: <strong className="font-bold text-violet-400">{formatNaturalDuration(timerState.seconds)}</strong> (
+                            {calculatedHours}h)
                           </span>
                         ) : (
                           <span>Press Start when you begin coding or testing</span>
                         )}
                       </div>
+                      {activeTimerConflict && (
+                        <div className="mt-2 text-center text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-xl px-2.5 py-1">
+                          {activeTimerConflict}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -459,7 +578,7 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
                         className="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-orange-600/30 hover:bg-orange-500 transition-all cursor-pointer active:scale-95"
                       >
                         <Square className="h-4 w-4 fill-white" />
-                        <span>Stop & Log Time (+{calculatedHours}h)</span>
+                        <span>Stop & Log Time ({formatNaturalDuration(timerState.seconds)})</span>
                       </button>
                     )}
                   </div>
@@ -910,13 +1029,13 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
               >
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-orange-400">
-                    Recorded Hours to Log
+                    Recorded Session Time
                   </span>
                   <div className="mt-0.5 font-mono text-3xl font-black tabular-nums text-orange-500 dark:text-orange-400">
-                    +{frozenSession.hours}h
+                    {formatNaturalDuration(frozenSession.seconds)}
                   </div>
                   <div className="text-[11px] text-zinc-400">
-                    Recorded session duration: <strong className="text-orange-400 font-semibold">{formatTimer(frozenSession.seconds)}</strong> ({Math.max(1, Math.round(frozenSession.seconds / 60))} mins)
+                    Recorded session duration: <strong className="text-orange-400 font-semibold">{formatTimer(frozenSession.seconds)}</strong> ({frozenSession.hours}h)
                   </div>
                 </div>
 
@@ -1029,7 +1148,7 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
                 className="flex items-center gap-1.5 rounded-xl bg-orange-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-orange-600/30 hover:bg-orange-500 transition-all cursor-pointer active:scale-95"
               >
                 <Square className="h-4 w-4 fill-white" />
-                <span>Log +{frozenSession.hours}h & Save Progress</span>
+                <span>Log {formatNaturalDuration(frozenSession.seconds)} & Save Progress</span>
               </button>
             </div>
           </div>

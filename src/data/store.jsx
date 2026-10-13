@@ -1033,10 +1033,17 @@ export function AppProvider({ children }) {
     const targetWo = db.workOrders.find((w) => w.id === workOrderId);
     if (!targetWo) return;
 
+    const newActualHours = Math.round(((Number(targetWo.actualHours) || 0) + hrs) * 100) / 100;
+    fetch(`/api/work-orders/${workOrderId}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actualHours: newActualHours }),
+    }).catch((err) => console.warn('[project-soft] Failed to sync actualHours to MySQL:', err));
+
     setDb((prev) => {
       const updatedWorkOrders = prev.workOrders.map((w) =>
         w.id === workOrderId
-          ? { ...w, actualHours: Math.round(((Number(w.actualHours) || 0) + hrs) * 100) / 100 }
+          ? { ...w, actualHours: newActualHours }
           : w,
       );
       const ptdWos = updatedWorkOrders.filter((w) => w.ptdId === targetWo.ptdId);
