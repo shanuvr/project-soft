@@ -132,11 +132,11 @@ export default function DetailedPtd({ dark, ptdId, onBack }) {
     setShowEditor(true);
   };
 
-  const saveRows = () => {
+  const saveRows = async () => {
     if (editingId) {
       const r = rows[0];
       if (r && r.title?.trim()) {
-        updateWorkOrder(editingId, {
+        await updateWorkOrder(editingId, {
           title: r.title.trim(),
           description: r.description?.trim() || '',
           estimatedHours: Number(r.estimatedHours) || 0,
@@ -147,7 +147,7 @@ export default function DetailedPtd({ dark, ptdId, onBack }) {
         });
       }
     } else {
-      const created = createWorkOrders(ptdId, rows);
+      const created = await createWorkOrders(ptdId, rows);
       if (!created) return;
     }
     setEditingId(null);

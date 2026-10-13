@@ -191,7 +191,7 @@ export function AppProvider({ children }) {
   const syncDecisionToAccounts = async (target, action, remark = '') => {
     const ptdId = target?.ptdId || target?.id;
     const orderId = target?.orderId;
-    const accountsUrl = (import.meta.env.VITE_ACCOUNTS_API_URL || 'http://127.0.0.1:8001').replace(/\/$/, '');
+    const accountsUrl = (import.meta.env.VITE_ACCOUNTS_API_URL || '').replace(/\/$/, '');
     try {
       await fetch(`${accountsUrl}/api/ptda/external-decision/`, {
         method: 'POST',
@@ -212,7 +212,7 @@ export function AppProvider({ children }) {
   // Sync incoming PTD requests from Account Soft
   useEffect(() => {
     const fetchIncomingFromAccounts = async () => {
-      const accountsUrl = (import.meta.env.VITE_ACCOUNTS_API_URL || 'http://127.0.0.1:8001').replace(/\/$/, '');
+      const accountsUrl = (import.meta.env.VITE_ACCOUNTS_API_URL || '').replace(/\/$/, '');
       try {
         const res = await fetch(`${accountsUrl}/api/ptda/external-requests/`);
         if (!res.ok) return;
@@ -266,6 +266,30 @@ export function AppProvider({ children }) {
     fetchIncomingFromAccounts();
     const timer = setInterval(fetchIncomingFromAccounts, 4000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Load and sync work orders from MySQL backend
+  useEffect(() => {
+    const fetchWorkOrdersFromDb = async () => {
+      try {
+        const res = await fetch('/api/work-orders/');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setDb((prev) => {
+            const map = new Map((prev.workOrders || []).map((w) => [w.id, w]));
+            data.forEach((w) => map.set(w.id, { ...(map.get(w.id) || {}), ...w }));
+            return {
+              ...prev,
+              workOrders: Array.from(map.values()),
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('[project-soft] Failed to fetch work orders from MySQL:', err);
+      }
+    };
+    fetchWorkOrdersFromDb();
   }, []);
 
   const acceptPtd = (id) => {
@@ -392,7 +416,7 @@ export function AppProvider({ children }) {
     }));
   };
 
-  const createWorkOrders = (ptdId, rows) => {
+  const createWorkOrders = async (ptdId, rows) => {
     const clean = rows.filter((r) => r.title && r.title.trim());
     if (!clean.length) return 0;
     const now = new Date().toISOString().slice(0, 10);
@@ -404,7 +428,7 @@ export function AppProvider({ children }) {
       description: r.description?.trim() || '',
       projectId,
       ptdId,
-      assignee: r.assignee,
+      assignee: r.assignee || null,
       priority: r.priority || 'medium',
       startDate: r.startDate || now,
       dueDate: r.dueDate || '',
@@ -417,6 +441,26 @@ export function AppProvider({ children }) {
       reviewHistory: [],
       files: [],
     }));
+
+    try {
+      const res = await fetch('/api/work-orders/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newWorkOrders),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        const savedList = Array.isArray(saved) ? saved : [saved];
+        savedList.forEach((sw, i) => {
+          if (newWorkOrders[i]) {
+            newWorkOrders[i].id = sw.id;
+          }
+        });
+      }
+    } catch (err) {
+      console.warn('[project-soft] Failed to save work orders to MySQL:', err);
+    }
+
     const totalHours = newWorkOrders.reduce((s, w) => s + w.estimatedHours, 0);
     setDb((prev) => {
       const allWos = [...prev.workOrders, ...newWorkOrders];
@@ -453,7 +497,7 @@ export function AppProvider({ children }) {
     return newWorkOrders.length;
   };
 
-  const createSingleWorkOrder = (data) => {
+  const createSingleWorkOrder = async (data) => {
     const now = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     const id = nextWoId(db.workOrders);
@@ -476,6 +520,21 @@ export function AppProvider({ children }) {
       reviewHistory: [],
       files: [],
     };
+
+    try {
+      const res = await fetch('/api/work-orders/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newWo),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        if (saved && saved.id) newWo.id = saved.id;
+      }
+    } catch (err) {
+      console.warn('[project-soft] Failed to save single work order to MySQL:', err);
+    }
+
     setDb((prev) => {
       const allWos = [...prev.workOrders, newWo];
       const ptdWos = allWos.filter((w) => w.ptdId === newWo.ptdId);
@@ -528,12 +587,22 @@ export function AppProvider({ children }) {
         ],
       };
     });
-    return id;
+    return newWo.id;
   };
 
   const acceptWorkOrder = (id) => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    fetch(`/api/work-orders/${id}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'not-started',
+        acceptedDate: today,
+        acceptedBy: currentUser?.id,
+      }),
+    }).catch((err) => console.warn('[project-soft] Failed to accept work order in MySQL:', err));
+
     setDb((prev) => {
       const target = prev.workOrders.find((w) => w.id === id);
       if (!target) return prev;
@@ -586,6 +655,17 @@ export function AppProvider({ children }) {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     const cleanRemark = remark.trim() || 'No specific remark provided.';
+    fetch(`/api/work-orders/${id}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status: 'rejected',
+        rejectedDate: today,
+        rejectedBy: currentUser?.id,
+        rejectionRemark: cleanRemark,
+      }),
+    }).catch((err) => console.warn('[project-soft] Failed to reject work order in MySQL:', err));
+
     setDb((prev) => {
       const target = prev.workOrders.find((w) => w.id === id);
       if (!target) return prev;
@@ -635,6 +715,15 @@ export function AppProvider({ children }) {
   const reassignWorkOrder = (id, newAssigneeId) => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    fetch(`/api/work-orders/${id}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        assignee: newAssigneeId,
+        status: 'assigned',
+      }),
+    }).catch((err) => console.warn('[project-soft] Failed to reassign work order in MySQL:', err));
+
     setDb((prev) => {
       const target = prev.workOrders.find((w) => w.id === id);
       if (!target) return prev;
@@ -683,19 +772,30 @@ export function AppProvider({ children }) {
     });
   };
 
-  const updateWorkOrderStatus = (id, status) => {
+  const updateWorkOrderStatus = async (id, status) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const doneStatus = status === 'completed' || status === 'done';
+    const autoProgress = doneStatus ? 100 : undefined;
+
+    fetch(`/api/work-orders/${id}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        status,
+        ...(autoProgress !== undefined ? { progress: autoProgress } : {}),
+      }),
+    }).catch((err) => console.warn('[project-soft] Failed to update status in MySQL:', err));
+
     setDb((prev) => {
       const target = prev.workOrders.find((w) => w.id === id);
       if (!target) return prev;
-      const today = new Date().toISOString().slice(0, 10);
-      const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
       const project = prev.projects.find((p) => p.id === target.projectId);
-      const doneStatus = status === 'completed' || status === 'done';
-      const autoProgress = doneStatus ? 100 : target.progress;
+      const targetProgress = doneStatus ? 100 : target.progress;
       const verb = doneStatus ? 'completed' : status === 'in-progress' ? 'started' : `set to ${status.replaceAll('-', ' ')}`;
 
       const workOrders = prev.workOrders.map((w) =>
-        w.id === id ? { ...w, status, progress: autoProgress } : w,
+        w.id === id ? { ...w, status, progress: targetProgress } : w,
       );
       const ptdWos = workOrders.filter((w) => w.ptdId === target.ptdId);
       const calcProgress = ptdWos.length
@@ -740,7 +840,13 @@ export function AppProvider({ children }) {
     });
   };
 
-  const updateWorkOrder = (id, patch) => {
+  const updateWorkOrder = async (id, patch) => {
+    fetch(`/api/work-orders/${id}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    }).catch((err) => console.warn('[project-soft] Failed to update work order in MySQL:', err));
+
     setDb((prev) => {
       const target = prev.workOrders.find((w) => w.id === id);
       if (!target) return prev;
@@ -767,7 +873,11 @@ export function AppProvider({ children }) {
     });
   };
 
-  const deleteWorkOrder = (id) => {
+  const deleteWorkOrder = async (id) => {
+    fetch(`/api/work-orders/${id}/`, {
+      method: 'DELETE',
+    }).catch((err) => console.warn('[project-soft] Failed to delete work order from MySQL:', err));
+
     setDb((prev) => {
       const target = prev.workOrders.find((w) => w.id === id);
       if (!target) return prev;
