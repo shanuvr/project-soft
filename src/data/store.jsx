@@ -81,7 +81,7 @@ export function AppProvider({ children }) {
 
   const login = async (username, password) => {
     const trimmedUser = (username || '').trim();
-    const coreUrl = (import.meta.env.VITE_CORE_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+    const coreUrl = (import.meta.env.VITE_CORE_API_URL || '').replace(/\/$/, '');
 
     let coreError = null;
     try {
