@@ -4,7 +4,7 @@ import { createSeed } from './seed';
 
 const DB_KEY = 'project-soft:db';
 const SESSION_KEY = 'project-soft:session';
-const SEED_VERSION = 27;
+const SEED_VERSION = 28;
 
 function readKey(key) {
   try {
@@ -217,45 +217,39 @@ export function AppProvider({ children }) {
         const res = await fetch(`${accountsUrl}/api/ptda/external-requests/`);
         if (!res.ok) return;
         const incoming = await res.json();
-        if (!Array.isArray(incoming) || !incoming.length) return;
+        if (!Array.isArray(incoming)) return;
 
         setDb((prev) => {
-          let hasChanges = false;
-          const currentPtds = [...(prev.ptds || [])];
-
-          incoming.forEach((item) => {
-            const idx = currentPtds.findIndex((p) => p.id === item.id || (p.orderId && p.orderId === item.orderId));
-            if (idx >= 0) {
-              const existing = currentPtds[idx];
-              if (
-                existing.status !== item.status ||
-                existing.rejectionRemark !== item.rejectionRemark ||
-                existing.decisionStatus !== item.decisionStatus
-              ) {
-                currentPtds[idx] = {
-                  ...existing,
-                  ...item,
-                  status: item.status,
-                  rejectionRemark: item.rejectionRemark,
-                  decisionStatus: item.decisionStatus,
-                  client: item.client || existing.client,
-                  name: item.name || existing.name,
-                };
-                hasChanges = true;
-              }
-            } else {
-              currentPtds.unshift({
-                ...item,
-                projectId: null,
-              });
-              hasChanges = true;
-            }
+          // Keep only real database items from accounts soft (filter out any old static seed items if present)
+          const existingMap = new Map((prev.ptds || []).map((p) => [p.id, p]));
+          const merged = incoming.map((item) => {
+            const existing = existingMap.get(item.id) || {};
+            return {
+              ...existing,
+              ...item,
+              projectId: existing.projectId || null,
+            };
           });
 
-          if (!hasChanges) return prev;
+          // Only update state if count or values changed
+          const prevPtds = prev.ptds || [];
+          const isSame =
+            prevPtds.length === merged.length &&
+            merged.every((m, idx) => {
+              const p = prevPtds[idx];
+              return (
+                p &&
+                p.id === m.id &&
+                p.status === m.status &&
+                p.rejectionRemark === m.rejectionRemark &&
+                p.decisionStatus === m.decisionStatus
+              );
+            });
+
+          if (isSame) return prev;
           return {
             ...prev,
-            ptds: currentPtds,
+            ptds: merged,
           };
         });
       } catch {
@@ -275,15 +269,11 @@ export function AppProvider({ children }) {
         const res = await fetch('/api/work-orders/');
         if (!res.ok) return;
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
-          setDb((prev) => {
-            const map = new Map((prev.workOrders || []).map((w) => [w.id, w]));
-            data.forEach((w) => map.set(w.id, { ...(map.get(w.id) || {}), ...w }));
-            return {
-              ...prev,
-              workOrders: Array.from(map.values()),
-            };
-          });
+        if (Array.isArray(data)) {
+          setDb((prev) => ({
+            ...prev,
+            workOrders: data,
+          }));
         }
       } catch (err) {
         console.warn('[project-soft] Failed to fetch work orders from MySQL:', err);
