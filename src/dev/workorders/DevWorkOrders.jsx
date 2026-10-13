@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
-  ChevronRight,
-  ClipboardCheck,
   Clock,
   ListTodo,
   Search,
@@ -11,7 +9,6 @@ import {
   X,
   XCircle,
   Inbox,
-  RotateCcw,
   Calendar,
   Building2,
   FileText,
@@ -229,7 +226,6 @@ export default function DevWorkOrders({ dark }) {
   }, [openWo]);
 
   const panel = dark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-white/80';
-  const cardBorder = dark ? 'border-zinc-800' : 'border-zinc-200';
   const heading = dark ? 'text-zinc-100' : 'text-zinc-800';
   const muted = dark ? 'text-zinc-400' : 'text-zinc-500';
   const barTrack = dark ? 'bg-zinc-800' : 'bg-zinc-200';
@@ -790,7 +786,9 @@ export default function DevWorkOrders({ dark }) {
                               );
                             }
                           }
-                        } catch {}
+                        } catch {
+                          /* ignore storage parse error */
+                        }
                         return null;
                       })()}
                     </div>

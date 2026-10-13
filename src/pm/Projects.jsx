@@ -5,7 +5,6 @@ import {
   Briefcase,
   CheckCircle2,
   ChevronRight,
-  Clock,
   Layers,
   LayoutGrid,
   List,
@@ -141,7 +140,7 @@ function daysLeft(proj) {
 }
 
 export default function Projects({ dark }) {
-  const { db, createProject, updateProject, deleteProject, updateMilestone } = useApp();
+  const { db, createProject, updateProject, deleteProject } = useApp();
   const [selectedProject, setSelectedProject] = useState(null);
   const [projectTab, setProjectTab] = useState('overview'); // overview, ptds, workorders, activity
   const [query, setQuery] = useState('');

@@ -95,7 +95,7 @@ function buildDailySummary(entries) {
 }
 
 export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onBack }) {
-  const { db, logHours, updateWorkOrder, submitWorkOrderForReview, updateWorkOrderStatus, acceptWorkOrder, rejectWorkOrder } = useApp();
+  const { db, logHours, updateWorkOrder, updateWorkOrderStatus, acceptWorkOrder, rejectWorkOrder } = useApp();
 
   const left = daysUntil(wo.dueDate);
   const overdue = !isDone(wo) && left !== null && left < 0;
@@ -140,7 +140,9 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
         }
         return { isRunning: false, seconds: parsed.seconds || 0, lastStart: null };
       }
-    } catch {}
+    } catch {
+      /* ignore storage read error */
+    }
     return { isRunning: false, seconds: 0, lastStart: null };
   });
 
@@ -153,7 +155,9 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
           const nextObj = { isRunning: true, seconds: nextSecs, lastStart: Date.now() };
           try {
             localStorage.setItem(TIMER_KEY, JSON.stringify(nextObj));
-          } catch {}
+          } catch {
+            /* ignore storage write error */
+          }
           return nextObj;
         });
       }, 1000);
@@ -161,7 +165,7 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [timerState.isRunning, wo.id]);
+  }, [timerState.isRunning, wo.id, TIMER_KEY]);
 
   // Live session calculated hours
   const calculatedHours = useMemo(() => {
@@ -175,7 +179,9 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
     setTimerState(nextObj);
     try {
       localStorage.setItem(TIMER_KEY, JSON.stringify(nextObj));
-    } catch {}
+    } catch {
+      /* ignore storage write error */
+    }
     if (wo.status === 'not-started' || wo.status === 'assigned') {
       updateWorkOrderStatus(wo.id, 'in-progress');
     }
@@ -206,7 +212,9 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
     setTimerState({ isRunning: false, seconds: 0, lastStart: null });
     try {
       localStorage.removeItem(TIMER_KEY);
-    } catch {}
+    } catch {
+      /* ignore storage remove error */
+    }
     setShowStopModal(false);
     setLogSuccessMsg(`Successfully logged ${hrsToLog}h (${formattedDuration}) & updated progress to ${finalProgress}%!`);
     setLogSuccess(true);
@@ -237,10 +245,6 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
   const dailySummary = useMemo(() => buildDailySummary(history), [history]);
 
   const ptd = (db.ptds || []).find((p) => p.id === wo.ptdId);
-
-  const handleSubmitReview = () => {
-    submitWorkOrderForReview(wo.id, 'Ready for review');
-  };
 
   const handleMarkComplete = () => {
     setNewProgress(100);

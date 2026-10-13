@@ -139,10 +139,7 @@ export default function Reports({ dark }) {
     const LIGHT  = hexToRgb('#f3f4f6');
     const ZEBRA  = hexToRgb('#f9fafb');
     const BORDER = hexToRgb('#d1d5db');
-    const TRACK  = hexToRgb('#e5e7eb');
     const WHITE  = hexToRgb('#ffffff');
-
-    const hPct = selected.est ? Math.min(100, Math.round((selected.logged / selected.est) * 100)) : 0;
 
     // ── Footer on every page ──
     const drawFooter = () => {

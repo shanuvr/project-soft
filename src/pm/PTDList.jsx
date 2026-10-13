@@ -9,12 +9,8 @@ import {
   Clock,
   Calendar,
   Building2,
-  AlertCircle,
   X,
   RotateCcw,
-  Sparkles,
-  ArrowRight,
-  MessageSquareQuote,
 } from 'lucide-react';
 import { useApp } from '../data/context.js';
 import { PTD_STATUS_LABELS } from './ptdMeta.js';

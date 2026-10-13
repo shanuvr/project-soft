@@ -48,34 +48,6 @@ export default function DetailedPtd({ dark, ptdId, onBack }) {
   const muted = dark ? 'text-zinc-500' : 'text-zinc-500';
   const rowHover = dark ? 'hover:bg-zinc-800/60' : 'hover:bg-zinc-50';
 
-  if (!ptd) {
-    return (
-      <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
-        <button
-          onClick={onBack}
-          className="mb-4 flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 cursor-pointer"
-        >
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
-        <p className="text-sm text-zinc-500">PTD not found.</p>
-      </div>
-    );
-  }
-
-  const coreDevs = db.users.filter((u) => u.role === 'dev' && u.id?.startsWith('core-'));
-  const devs = coreDevs.length > 0 ? coreDevs : db.users.filter((u) => u.role === 'dev');
-  const usersById = Object.fromEntries(db.users.map((u) => [u.id, u]));
-  const woList = db.workOrders.filter((w) => w.ptdId === ptdId);
-
-  const remaining = Math.max(
-    0,
-    (ptd.estimatedHours || 0) - (ptd.allocatedHours || 0) - (ptd.usedHours || 0),
-  );
-  const batchHours = rows.reduce((s, r) => s + (Number(r.estimatedHours) || 0), 0);
-
-  const updateRow = (i, patch) =>
-    setRows((prev) => prev.map((r, j) => (j === i ? { ...r, ...patch } : r)));
-
   const toggleMenu = (id, evt) => {
     if (openMenuId === id) {
       setOpenMenuId(null);
@@ -110,6 +82,34 @@ export default function DetailedPtd({ dark, ptdId, onBack }) {
       window.removeEventListener('resize', handleScrollOrResize);
     };
   }, [openMenuId]);
+
+  if (!ptd) {
+    return (
+      <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
+        <button
+          onClick={onBack}
+          className="mb-4 flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-300 cursor-pointer"
+        >
+          <ArrowLeft className="h-4 w-4" /> Back
+        </button>
+        <p className="text-sm text-zinc-500">PTD not found.</p>
+      </div>
+    );
+  }
+
+  const coreDevs = db.users.filter((u) => u.role === 'dev' && u.id?.startsWith('core-'));
+  const devs = coreDevs.length > 0 ? coreDevs : db.users.filter((u) => u.role === 'dev');
+  const usersById = Object.fromEntries(db.users.map((u) => [u.id, u]));
+  const woList = db.workOrders.filter((w) => w.ptdId === ptdId);
+
+  const remaining = Math.max(
+    0,
+    (ptd.estimatedHours || 0) - (ptd.allocatedHours || 0) - (ptd.usedHours || 0),
+  );
+  const batchHours = rows.reduce((s, r) => s + (Number(r.estimatedHours) || 0), 0);
+
+  const updateRow = (i, patch) =>
+    setRows((prev) => prev.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 
   const openCreate = () => {
     setEditingId(null);

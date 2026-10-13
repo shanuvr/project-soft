@@ -258,7 +258,7 @@ export function AppProvider({ children }) {
             ptds: currentPtds,
           };
         });
-      } catch (err) {
+      } catch {
         // Accounts soft might be offline
       }
     };
@@ -702,7 +702,6 @@ export function AppProvider({ children }) {
     setDb((prev) => {
       const target = prev.workOrders.find((w) => w.id === id);
       if (!target) return prev;
-      const project = prev.projects.find((p) => p.id === target.projectId);
       return {
         ...prev,
         workOrders: prev.workOrders.map((w) =>
