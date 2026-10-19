@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sun, Moon, Power, Bell, RotateCcw } from 'lucide-react';
+import { Sun, Moon, Power, Bell } from 'lucide-react';
 import PMDock from './PMDock.jsx';
 import DevDock from './DevDock.jsx';
 import { appsForRole } from '../data/dockConfig.js';
@@ -54,7 +54,7 @@ const ROLE_LABELS = { pm: 'Project Manager', dev: 'Developer', admin: 'Administr
 
 export default function AppShell({ initialApp = 'dashboard' }) {
   const navigate = useNavigate();
-  const { currentUser, db, logout, resetDb } = useApp();
+  const { currentUser, db, logout } = useApp();
 
   const [dark, setDark] = useState(readTheme);
   const [activeApp] = useState(initialApp);
@@ -197,15 +197,6 @@ export default function AppShell({ initialApp = 'dashboard' }) {
               </span>
             )}
             <Bell className="h-4 w-4" />
-          </button>
-          <button
-            onClick={resetDb}
-            title="Reset data to seed"
-            className={`rounded-md p-1.5 transition-colors cursor-pointer ${
-              dark ? 'hover:bg-zinc-800' : 'hover:bg-zinc-200'
-            }`}
-          >
-            <RotateCcw className="h-4 w-4" />
           </button>
           <button
             onClick={handleLogout}
