@@ -6,13 +6,10 @@ function isoDaysFromNow(days) {
 
 export function createSeed() {
   return {
-    _seedVersion: 27,
+    _seedVersion: 30,
 
     users: [
-      { id: 'u1', username: 'admin', password: 'admin', name: 'Ajoy Kumar', role: 'pm', title: 'Project Manager' },
-      { id: 'u2', username: 'rahul', password: 'rahul', name: 'Rahul Sharma', role: 'dev', title: 'Senior Developer' },
-      { id: 'u3', username: 'arun', password: 'arun', name: 'Arun Dev', role: 'dev', title: 'Developer' },
-      { id: 'u4', username: 'developer', password: 'developer', name: 'Rohan Mehta', role: 'dev', title: 'Developer' },
+      { id: 'u1', username: 'admin', password: 'admin', name: 'Admin', role: 'pm', title: 'Project Manager' },
     ],
 
     projects: [],

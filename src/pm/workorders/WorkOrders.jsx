@@ -2,13 +2,11 @@ import { useState, useMemo } from 'react';
 import {
   Search,
   ChevronRight,
-  Plus,
   AlertTriangle,
   X,
 } from 'lucide-react';
 import { useApp } from '../../data/context.js';
 import { PriorityBadge, WoStatusBadge } from '../badges.jsx';
-import CreateWorkOrderModal from './CreateWorkOrderModal.jsx';
 import WorkOrderDetailDrawer from './WorkOrderDetailDrawer.jsx';
 
 const WO_STATUS_FILTERS = [
@@ -36,7 +34,6 @@ export default function WorkOrders({ dark }) {
 
   // Selected work order for 360 detail drawer
   const [selectedWoId, setSelectedWoId] = useState(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const projectsById = useMemo(
     () => Object.fromEntries(projects.map((p) => [p.id, p])),
@@ -49,6 +46,10 @@ export default function WorkOrders({ dark }) {
   const usersById = useMemo(
     () => Object.fromEntries(users.map((u) => [u.id, u])),
     [users],
+  );
+  const developers = useMemo(
+    () => users.filter((u) => u.role === 'dev' || u.role === 'developer' || workOrders.some((w) => w.assignee === u.id)),
+    [users, workOrders],
   );
   const activeBlockersByWo = useMemo(() => {
     const map = {};
@@ -76,7 +77,10 @@ export default function WorkOrders({ dark }) {
         ptd?.ref?.toLowerCase().includes(q) ||
         assignee?.name?.toLowerCase().includes(q);
 
-      const matchesStatus = statusFilter === 'all' || wo.status === statusFilter;
+      const matchesStatus =
+        statusFilter === 'all' ||
+        wo.status === statusFilter ||
+        (statusFilter === 'completed' && (wo.status === 'completed' || wo.status === 'done'));
       const matchesProject = projectFilter === 'all' || wo.projectId === projectFilter;
       const matchesDev = developerFilter === 'all' || wo.assignee === developerFilter;
 
@@ -90,7 +94,7 @@ export default function WorkOrders({ dark }) {
     const assigned = workOrders.filter((w) => w.status === 'assigned').length;
     const notStarted = workOrders.filter((w) => w.status === 'not-started').length;
     const inProgress = workOrders.filter((w) => w.status === 'in-progress').length;
-    const completed = workOrders.filter((w) => w.status === 'completed').length;
+    const completed = workOrders.filter((w) => w.status === 'completed' || w.status === 'done').length;
     const rejected = workOrders.filter((w) => w.status === 'rejected').length;
     const activeBlockersCount = Object.keys(activeBlockersByWo).length;
     const totalEst = Math.round(workOrders.reduce((s, w) => s + (Number(w.estimatedHours) || 0), 0) * 100) / 100;
@@ -116,16 +120,6 @@ export default function WorkOrders({ dark }) {
           <p className={`mt-1 text-xs ${muted}`}>
             All active, pending, and completed tasks across projects — track progress, time logs, and execution details.
           </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-violet-600/30 transition-all cursor-pointer hover:bg-violet-500 active:scale-95"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Work Order</span>
-          </button>
         </div>
       </div>
 
@@ -246,7 +240,7 @@ export default function WorkOrders({ dark }) {
             className={`rounded-xl border px-3 py-2 text-xs outline-none cursor-pointer ${inputBg}`}
           >
             <option value="all">All Developers</option>
-            {users.map((u) => (
+            {developers.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name}
               </option>
@@ -472,14 +466,6 @@ export default function WorkOrders({ dark }) {
           workOrderId={selectedWoId}
           dark={dark}
           onClose={() => setSelectedWoId(null)}
-        />
-      )}
-
-      {/* CREATE WORK ORDER MODAL */}
-      {showCreateModal && (
-        <CreateWorkOrderModal
-          dark={dark}
-          onClose={() => setShowCreateModal(false)}
         />
       )}
     </div>

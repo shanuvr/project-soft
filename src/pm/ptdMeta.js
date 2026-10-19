@@ -16,6 +16,7 @@ export const WO_STATUS_LABELS = {
   'submitted-review': 'In Review',
   'changes-requested': 'Changes Requested',
   completed: 'Completed',
+  done: 'Completed',
   rejected: 'Rejected by Dev',
 };
 

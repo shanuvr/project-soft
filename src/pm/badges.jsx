@@ -23,6 +23,7 @@ const WO_STATUS_STYLES = {
   'submitted-review': 'bg-violet-500/15 text-violet-400',
   'changes-requested': 'bg-orange-500/15 text-orange-400',
   completed: 'bg-emerald-500/15 text-emerald-300',
+  done: 'bg-emerald-500/15 text-emerald-300',
   rejected: 'bg-rose-500/15 text-rose-400 border border-rose-500/30',
 };
 

@@ -25,7 +25,7 @@ export default function WorkOrderDetailDrawer({
   } = useApp();
 
   const wo = db.workOrders.find((w) => w.id === workOrderId);
-  const developers = (db.users || []).filter((u) => u.role === 'dev' || u.role === 'senior-dev' || u.role === 'junior-dev' || !u.role || u.role === 'pm');
+  const developers = (db.users || []).filter((u) => u.role === 'dev' || u.role === 'developer');
 
   const [newAssigneeId, setNewAssigneeId] = useState(() => {
     // Pick another developer by default if current assignee is wo.assignee

@@ -4,7 +4,7 @@ import { createSeed } from './seed';
 
 const DB_KEY = 'project-soft:db';
 const SESSION_KEY = 'project-soft:session';
-const SEED_VERSION = 29;
+const SEED_VERSION = 30;
 
 function readKey(key) {
   try {
@@ -323,16 +323,39 @@ export function AppProvider({ children }) {
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data)) {
-          setDb((prev) => ({
-            ...prev,
-            workOrders: data,
-          }));
+          setDb((prev) => {
+            const prevWos = prev.workOrders || [];
+            const isSame =
+              prevWos.length === data.length &&
+              data.every((d, i) => {
+                const p = prevWos[i];
+                return (
+                  p &&
+                  p.id === d.id &&
+                  p.status === d.status &&
+                  p.assignee === d.assignee &&
+                  p.actualHours === d.actualHours &&
+                  p.estimatedHours === d.estimatedHours &&
+                  p.progress === d.progress &&
+                  p.projectId === d.projectId &&
+                  p.ptdId === d.ptdId &&
+                  p.rejectionRemark === d.rejectionRemark
+                );
+              });
+            if (isSame) return prev;
+            return {
+              ...prev,
+              workOrders: data,
+            };
+          });
         }
       } catch (err) {
         console.warn('[project-soft] Failed to fetch work orders from MySQL:', err);
       }
     };
     fetchWorkOrdersFromDb();
+    const timer = setInterval(fetchWorkOrdersFromDb, 4000);
+    return () => clearInterval(timer);
   }, []);
 
   // Fetch real developers from SystemSoft Core
@@ -576,6 +599,7 @@ export function AppProvider({ children }) {
   const createSingleWorkOrder = async (data) => {
     const now = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const id = nextWoId(db.workOrders);
     const targetPtd = (db.ptds || []).find((p) => p.id === data.ptdId);
     const projectId = data.projectId || targetPtd?.projectId || targetPtd?.orderId || null;
     const newWo = {
