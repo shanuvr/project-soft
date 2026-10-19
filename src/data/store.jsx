@@ -4,7 +4,7 @@ import { createSeed } from './seed';
 
 const DB_KEY = 'project-soft:db';
 const SESSION_KEY = 'project-soft:session';
-const SEED_VERSION = 28;
+const SEED_VERSION = 29;
 
 function readKey(key) {
   try {
@@ -193,7 +193,7 @@ export function AppProvider({ children }) {
     const orderId = target?.orderId;
     const accountsUrl = (import.meta.env.VITE_ACCOUNTS_API_URL || '').replace(/\/$/, '');
     try {
-      await fetch(`${accountsUrl}/api/ptda/external-decision/`, {
+      await fetch('/api/ptds/decision/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -204,34 +204,48 @@ export function AppProvider({ children }) {
           decidedBy: currentUser?.name || 'Project Manager',
         }),
       });
+      if (accountsUrl) {
+        await fetch(`${accountsUrl}/api/ptda/external-decision/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ptdId,
+            orderId,
+            action,
+            remark,
+            decidedBy: currentUser?.name || 'Project Manager',
+          }),
+        }).catch(() => {});
+      }
     } catch (err) {
       console.warn('[project-soft] Failed to sync decision to accounts soft:', err);
     }
   };
 
-  // Sync incoming PTD requests from Account Soft
+  // Sync assigned PTD requests from Project Soft backend / Account Soft
   useEffect(() => {
     const fetchIncomingFromAccounts = async () => {
       const accountsUrl = (import.meta.env.VITE_ACCOUNTS_API_URL || '').replace(/\/$/, '');
       try {
-        const res = await fetch(`${accountsUrl}/api/ptda/external-requests/`);
+        let res = await fetch('/api/ptds/');
+        if (!res.ok && accountsUrl) {
+          res = await fetch(`${accountsUrl}/api/ptda/external-requests/`);
+        }
         if (!res.ok) return;
         const incoming = await res.json();
         if (!Array.isArray(incoming)) return;
 
         setDb((prev) => {
-          // Keep only real database items from accounts soft (filter out any old static seed items if present)
           const existingMap = new Map((prev.ptds || []).map((p) => [p.id, p]));
           const merged = incoming.map((item) => {
             const existing = existingMap.get(item.id) || {};
             return {
               ...existing,
               ...item,
-              projectId: existing.projectId || null,
+              projectId: item.projectId || item.orderId || existing.projectId || null,
             };
           });
 
-          // Only update state if count or values changed
           const prevPtds = prev.ptds || [];
           const isSame =
             prevPtds.length === merged.length &&
@@ -241,6 +255,7 @@ export function AppProvider({ children }) {
                 p &&
                 p.id === m.id &&
                 p.status === m.status &&
+                p.projectId === m.projectId &&
                 p.rejectionRemark === m.rejectionRemark &&
                 p.decisionStatus === m.decisionStatus
               );
@@ -253,12 +268,50 @@ export function AppProvider({ children }) {
           };
         });
       } catch {
-        // Accounts soft might be offline
+        // Soft error if offline
       }
     };
 
     fetchIncomingFromAccounts();
     const timer = setInterval(fetchIncomingFromAccounts, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Load and sync real projects from backend
+  useEffect(() => {
+    const fetchProjectsFromDb = async () => {
+      try {
+        const res = await fetch('/api/projects/');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setDb((prev) => {
+            const prevProj = prev.projects || [];
+            const isSame =
+              prevProj.length === data.length &&
+              data.every((d, i) => {
+                const p = prevProj[i];
+                return (
+                  p &&
+                  p.id === d.id &&
+                  p.status === d.status &&
+                  p.name === d.name &&
+                  (p.team || []).length === (d.team || []).length
+                );
+              });
+            if (isSame) return prev;
+            return {
+              ...prev,
+              projects: data,
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('[project-soft] Failed to fetch projects from backend:', err);
+      }
+    };
+    fetchProjectsFromDb();
+    const timer = setInterval(fetchProjectsFromDb, 4000);
     return () => clearInterval(timer);
   }, []);
 
@@ -443,8 +496,8 @@ export function AppProvider({ children }) {
     const clean = rows.filter((r) => r.title && r.title.trim());
     if (!clean.length) return 0;
     const now = new Date().toISOString().slice(0, 10);
-    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const projectId = db.ptds.find((p) => p.id === ptdId)?.projectId || null;
+    const targetPtd = (db.ptds || []).find((p) => p.id === ptdId);
+    const projectId = targetPtd?.projectId || targetPtd?.orderId || null;
     const newWorkOrders = clean.map((r) => ({
       id: nextWoId(db.workOrders),
       title: r.title.trim(),
@@ -523,12 +576,13 @@ export function AppProvider({ children }) {
   const createSingleWorkOrder = async (data) => {
     const now = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const id = nextWoId(db.workOrders);
+    const targetPtd = (db.ptds || []).find((p) => p.id === data.ptdId);
+    const projectId = data.projectId || targetPtd?.projectId || targetPtd?.orderId || null;
     const newWo = {
       id,
       title: data.title?.trim() || 'Untitled Work Order',
       description: data.description?.trim() || '',
-      projectId: data.projectId || null,
+      projectId,
       ptdId: data.ptdId || null,
       assignee: data.assignee || 'u2',
       priority: data.priority || 'medium',

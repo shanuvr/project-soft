@@ -10,14 +10,12 @@ import {
   List,
   ListTodo,
   Play,
-  Plus,
   Search,
   ShieldAlert,
   Trash2,
   X,
   FileText,
   Activity,
-  Check,
 } from 'lucide-react';
 import { useApp } from '../data/context.js';
 import { PtdStatusBadge, PriorityBadge } from './badges.jsx';
@@ -140,25 +138,13 @@ function daysLeft(proj) {
 }
 
 export default function Projects({ dark }) {
-  const { db, createProject, updateProject, deleteProject } = useApp();
+  const { db, updateProject, deleteProject } = useApp();
   const [selectedProject, setSelectedProject] = useState(null);
   const [projectTab, setProjectTab] = useState('overview'); // overview, ptds, workorders, activity
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('urgency'); // urgency, progress, name, hours
   const [viewMode, setViewMode] = useState('table'); // grid, table
-  const [showCreateModal, setShowCreateModal] = useState(false);
-
-  // New project form state
-  const [newProject, setNewProject] = useState({
-    name: '',
-    client: '',
-    priority: 'medium',
-    status: 'active',
-    dueDate: '',
-    team: [],
-    description: '',
-  });
 
   const panel = dark
     ? 'border-zinc-800/90 bg-zinc-900/75 backdrop-blur-md'
@@ -257,32 +243,6 @@ export default function Projects({ dark }) {
   );
 
   const selected = selectedProject ? projects.find((p) => p.id === selectedProject) : null;
-
-  const handleCreateSubmit = (e) => {
-    e.preventDefault();
-    if (!newProject.name.trim()) return;
-    const id = createProject(newProject);
-    setNewProject({
-      name: '',
-      client: '',
-      priority: 'medium',
-      status: 'active',
-      dueDate: '',
-      team: [],
-      description: '',
-    });
-    setShowCreateModal(false);
-    setSelectedProject(id);
-  };
-
-  const toggleTeamMember = (userId) => {
-    setNewProject((prev) => ({
-      ...prev,
-      team: prev.team.includes(userId)
-        ? prev.team.filter((id) => id !== userId)
-        : [...prev.team, userId],
-    }));
-  };
 
   // Avatar stack helper
   const memberStack = (members) => (
@@ -884,15 +844,6 @@ export default function Projects({ dark }) {
               <List className="h-3.5 w-3.5" />
             </button>
           </div>
-
-          {/* "+ New Project" Button */}
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-1.5 text-xs font-bold text-white shadow-md shadow-violet-500/20 hover:bg-violet-500 active:scale-95 cursor-pointer transition-all"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            <span>New Project</span>
-          </button>
         </div>
       </div>
 
@@ -1138,165 +1089,6 @@ export default function Projects({ dark }) {
       {filtered.length === 0 && (
         <div className={`mt-6 rounded-2xl border py-12 text-center text-sm ${panel} ${muted}`}>
           No projects match the selected criteria.
-        </div>
-      )}
-
-      {/* ---------------------------------------------------- */}
-      {/* NEW PROJECT MODAL */}
-      {/* ---------------------------------------------------- */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-black/60 animate-fade-in">
-          <div
-            className={`w-full max-w-lg rounded-2xl border p-5 sm:p-6 shadow-2xl transition-all ${
-              dark ? 'border-zinc-800 bg-zinc-900 text-zinc-100' : 'border-zinc-200 bg-white text-zinc-800'
-            }`}
-          >
-            <div className="flex items-center justify-between border-b pb-3 mb-4">
-              <div>
-                <h3 className="text-base font-bold">Create New Project</h3>
-                <p className={`text-xs ${muted}`}>Set up a new project engagement and assign initial team members.</p>
-              </div>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className={`rounded-lg p-1.5 cursor-pointer ${
-                  dark ? 'hover:bg-zinc-800 text-zinc-400' : 'hover:bg-zinc-100 text-zinc-600'
-                }`}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateSubmit} className="space-y-3.5">
-              <div>
-                <label className={`block text-xs font-semibold uppercase tracking-wider mb-1 ${muted}`}>
-                  Project Name *
-                </label>
-                <input
-                  required
-                  placeholder="e.g. Mobile Banking App v2"
-                  value={newProject.name}
-                  onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                  className={inputCls(dark)}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className={`block text-xs font-semibold uppercase tracking-wider mb-1 ${muted}`}>
-                    Client Name *
-                  </label>
-                  <input
-                    required
-                    placeholder="e.g. Zenith Bank"
-                    value={newProject.client}
-                    onChange={(e) => setNewProject({ ...newProject, client: e.target.value })}
-                    className={inputCls(dark)}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-xs font-semibold uppercase tracking-wider mb-1 ${muted}`}>
-                    Priority
-                  </label>
-                  <select
-                    value={newProject.priority}
-                    onChange={(e) => setNewProject({ ...newProject, priority: e.target.value })}
-                    className={inputCls(dark)}
-                  >
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className={`block text-xs font-semibold uppercase tracking-wider mb-1 ${muted}`}>
-                    Target Due Date
-                  </label>
-                  <input
-                    type="date"
-                    value={newProject.dueDate}
-                    onChange={(e) => setNewProject({ ...newProject, dueDate: e.target.value })}
-                    className={inputCls(dark)}
-                  />
-                </div>
-                <div>
-                  <label className={`block text-xs font-semibold uppercase tracking-wider mb-1 ${muted}`}>
-                    Initial Status
-                  </label>
-                  <select
-                    value={newProject.status}
-                    onChange={(e) => setNewProject({ ...newProject, status: e.target.value })}
-                    className={inputCls(dark)}
-                  >
-                    <option value="active">Active</option>
-                    <option value="not-started">Not Started</option>
-                    <option value="on-hold">On Hold</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className={`block text-xs font-semibold uppercase tracking-wider mb-1.5 ${muted}`}>
-                  Assign Team Members
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {developers.map((dev) => {
-                    const isSelected = newProject.team.includes(dev.id);
-                    return (
-                      <button
-                        type="button"
-                        key={dev.id}
-                        onClick={() => toggleTeamMember(dev.id)}
-                        className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-medium cursor-pointer transition-all ${
-                          isSelected
-                            ? 'border-violet-500 bg-violet-500 text-white shadow-xs'
-                            : dark
-                              ? 'border-zinc-800 bg-zinc-800 text-zinc-300 hover:border-zinc-700'
-                              : 'border-zinc-200 bg-zinc-100 text-zinc-700 hover:border-zinc-300'
-                        }`}
-                      >
-                        {isSelected && <Check className="h-3 w-3" />}
-                        {dev.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label className={`block text-xs font-semibold uppercase tracking-wider mb-1 ${muted}`}>
-                  Description & Objectives
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Outline key goals, deliverables, and scope..."
-                  value={newProject.description}
-                  onChange={(e) => setNewProject({ ...newProject, description: e.target.value })}
-                  className={inputCls(dark)}
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t mt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className={`rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer ${
-                    dark ? 'hover:bg-zinc-800 text-zinc-300' : 'hover:bg-zinc-100 text-zinc-700'
-                  }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-500 cursor-pointer shadow-md shadow-violet-500/20"
-                >
-                  Create Project
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
     </div>
