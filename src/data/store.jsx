@@ -519,6 +519,7 @@ export function AppProvider({ children }) {
     const clean = rows.filter((r) => r.title && r.title.trim());
     if (!clean.length) return 0;
     const now = new Date().toISOString().slice(0, 10);
+    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     const targetPtd = (db.ptds || []).find((p) => p.id === ptdId);
     const projectId = targetPtd?.projectId || targetPtd?.orderId || null;
     const newWorkOrders = clean.map((r) => ({
