@@ -367,7 +367,16 @@ export function AppProvider({ children }) {
         const data = await res.json();
         if (Array.isArray(data)) {
           setDb((prev) => {
-            const nonDevs = (prev.users || []).filter((u) => u.role !== 'dev');
+            const prevUsers = prev.users || [];
+            const nonDevs = prevUsers.filter((u) => u.role !== 'dev');
+            const prevDevs = prevUsers.filter((u) => u.role === 'dev');
+            const isSame =
+              prevDevs.length === data.length &&
+              data.every((d, i) => {
+                const p = prevDevs[i];
+                return p && p.id === d.id && p.name === d.name && p.email === d.email && p.title === d.title;
+              });
+            if (isSame) return prev;
             return {
               ...prev,
               users: [...nonDevs, ...data],
@@ -1707,44 +1716,75 @@ export function AppProvider({ children }) {
     const firstWo = clean.map((e) => e.workOrderId).filter(Boolean).length
       ? ` (${clean.filter((e) => e.workOrderId).length} linked work orders)`
       : '';
-    setDb((prev) => ({
-      ...prev,
-      reportEntries: [
-        ...savedList,
-        ...(prev.reportEntries || []).filter((e) => !savedList.some((s) => s.id === e.id)),
-      ],
-      notifications: [
-        makeNotification(
-          'report',
-          `${currentUser?.name || 'User'} submitted a daily report — ${clean.length} entries, ${totalHours}h${firstWo}`,
-          { actor: currentUser?.name || 'User', date: today, time, workOrderId: savedList[0]?.workOrderId || null },
-        ),
-        ...(prev.notifications || []),
-      ],
-      activity: [
-        {
-          id: uid('a'),
-          date: today,
-          time,
-          actor: currentUser?.name || 'User',
-          text: `submitted a daily report (${clean.length} entries, ${totalHours}h)`,
-          projectId: null,
-        },
-        ...(prev.activity || []),
-      ],
-    }));
+
+    const hoursByWo = {};
+    savedList.forEach((entry) => {
+      if (entry.workOrderId && entry.hours > 0) {
+        hoursByWo[entry.workOrderId] = (hoursByWo[entry.workOrderId] || 0) + entry.hours;
+      }
+    });
+
+    setDb((prev) => {
+      const updatedWos = Object.keys(hoursByWo).length
+        ? (prev.workOrders || []).map((w) =>
+            hoursByWo[w.id]
+              ? { ...w, actualHours: Math.round(((w.actualHours || 0) + hoursByWo[w.id]) * 100) / 100 }
+              : w,
+          )
+        : prev.workOrders;
+
+      return {
+        ...prev,
+        workOrders: updatedWos,
+        reportEntries: [
+          ...savedList,
+          ...(prev.reportEntries || []).filter((e) => !savedList.some((s) => s.id === e.id)),
+        ],
+        notifications: [
+          makeNotification(
+            'report',
+            `${currentUser?.name || 'User'} submitted a daily report — ${clean.length} entries, ${totalHours}h${firstWo}`,
+            { actor: currentUser?.name || 'User', date: today, time, workOrderId: savedList[0]?.workOrderId || null },
+          ),
+          ...(prev.notifications || []),
+        ],
+        activity: [
+          {
+            id: uid('a'),
+            date: today,
+            time,
+            actor: currentUser?.name || 'User',
+            text: `submitted a daily report (${clean.length} entries, ${totalHours}h)`,
+            projectId: null,
+          },
+          ...(prev.activity || []),
+        ],
+      };
+    });
   };
 
   const deleteReportEntry = async (id) => {
+    const target = (db.reportEntries || []).find((e) => e.id === id);
     try {
       await fetch(`/api/report-entries/${id}/`, { method: 'DELETE' });
     } catch (err) {
       console.warn('[project-soft] Failed to delete report entry from backend:', err);
     }
-    setDb((prev) => ({
-      ...prev,
-      reportEntries: (prev.reportEntries || []).filter((e) => e.id !== id),
-    }));
+    setDb((prev) => {
+      let updatedWos = prev.workOrders;
+      if (target?.workOrderId && target?.hours > 0) {
+        updatedWos = (prev.workOrders || []).map((w) =>
+          w.id === target.workOrderId
+            ? { ...w, actualHours: Math.max(0, Math.round(((w.actualHours || 0) - target.hours) * 100) / 100) }
+            : w,
+        );
+      }
+      return {
+        ...prev,
+        workOrders: updatedWos,
+        reportEntries: (prev.reportEntries || []).filter((e) => e.id !== id),
+      };
+    });
   };
 
   return (

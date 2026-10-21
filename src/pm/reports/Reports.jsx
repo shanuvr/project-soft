@@ -90,8 +90,7 @@ export default function Reports({ dark }) {
       !periodActive ||
       ((!w.startDate || w.startDate <= toDate) && (!w.dueDate || w.dueDate >= fromDate));
     const entInRange = (e) => !periodActive || Boolean(e.date && e.date >= fromDate && e.date <= toDate);
-    const devs = (db.users || []).filter((u) => u.role === 'dev');
-    return devs.map((user) => {
+    return realDevs.map((user) => {
       const wos = (db.workOrders || []).filter((w) => w.assignee === user.id && inRange(w));
       const entries = (db.reportEntries || [])
         .filter((e) => e.userId === user.id && entInRange(e))
@@ -122,16 +121,20 @@ export default function Reports({ dark }) {
         entryHours,
       };
     });
-  }, [db, today, periodActive, fromDate, toDate]);
+  }, [db.workOrders, db.reportEntries, realDevs, today, periodActive, fromDate, toDate]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return reports.filter(
-      (r) => !q || r.user.name.toLowerCase().includes(q) || r.user.title.toLowerCase().includes(q),
-    );
+    return reports.filter((r) => {
+      if (!q) return true;
+      const name = (r.user.name || '').toLowerCase();
+      const title = (r.user.title || '').toLowerCase();
+      const email = (r.user.email || '').toLowerCase();
+      return name.includes(q) || title.includes(q) || email.includes(q);
+    });
   }, [reports, query]);
 
-  const selected = reports.find((r) => r.user.id === selectedId) || reports[0];
+  const selected = reports.find((r) => r.user.id === selectedId) || reports[0] || null;
 
   const downloadReport = () => {
     if (!selected) return;
@@ -199,7 +202,9 @@ export default function Reports({ dark }) {
     doc.setFontSize(9);
     doc.setTextColor(...GRAY);
     const periodText = periodActive ? `Period: ${fromDate} to ${toDate}` : 'All periods';
-    doc.text(`${selected.user.name} (${selected.user.title})  |  ${periodText}  |  Generated ${toIsoLocal(new Date())}`, M, y);
+    const devName = selected.user.name || selected.user.email || 'Developer';
+    const devTitle = selected.user.title || 'Developer';
+    doc.text(`${devName} (${devTitle})  |  ${periodText}  |  Generated ${toIsoLocal(new Date())}`, M, y);
     y += 7;
     doc.setDrawColor(...BLACK);
     doc.setLineWidth(1);
@@ -215,11 +220,11 @@ export default function Reports({ dark }) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.setTextColor(...BLACK);
-    doc.text(selected.user.name, M + 14, yc + 20);
+    doc.text(devName, M + 14, yc + 20);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(...GRAY);
-    doc.text(selected.user.title, M + 14, yc + 34);
+    doc.text(devTitle, M + 14, yc + 34);
 
     const stats = [
       ['Work Orders', String(selected.wos.length)],
@@ -310,7 +315,8 @@ export default function Reports({ dark }) {
 
     drawFooter();
     const periodTag = periodActive ? `-${fromDate}-to-${toDate}` : '';
-    doc.save(`employee-report-${selected.user.name.replace(/\s+/g, '-').toLowerCase()}${periodTag}.pdf`);
+    const safeFileTag = (selected.user.name || selected.user.email || 'developer').replace(/\s+/g, '-').toLowerCase();
+    doc.save(`employee-report-${safeFileTag}${periodTag}.pdf`);
   };
 
   const panel = dark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-white/80';
@@ -601,7 +607,7 @@ export default function Reports({ dark }) {
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className={`text-sm font-bold ${heading}`}>Daily Report Entries ({selected.entries.length})</h3>
                   <span className={`text-[10px] ${muted}`}>
-                    {fmtHours(selected.entryHours)}h reported by {selected.user.name.split(' ')[0]}
+                    {fmtHours(selected.entryHours)}h reported by {(selected.user.name || selected.user.email || 'Developer').split(' ')[0]}
                   </span>
                 </div>
                 {selected.entries.length > 0 ? (
