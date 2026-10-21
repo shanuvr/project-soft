@@ -109,9 +109,10 @@ function ReportIssueModal({ dark, onClose, defaultProjectId = '' }) {
   const muted = dark ? 'text-zinc-400' : 'text-zinc-500';
   const heading = dark ? 'text-zinc-100' : 'text-zinc-800';
   const inputBg = dark
-    ? 'bg-zinc-850 border-zinc-700 text-white placeholder-zinc-500 focus:border-violet-500'
+    ? 'bg-zinc-900 border-zinc-700 text-white placeholder-zinc-500 focus:border-violet-500'
     : 'bg-white border-zinc-300 text-zinc-800 placeholder-zinc-400 focus:border-violet-500';
   const inputCls = `w-full rounded-xl border px-3.5 py-2.5 text-xs outline-none transition-all ${inputBg}`;
+  const selectCls = `${inputCls} cursor-pointer [&>option]:bg-white [&>option]:text-zinc-800 ${dark ? '[&>option]:bg-zinc-900 [&>option]:text-zinc-100' : ''}`;
 
   return (
     <div
@@ -144,9 +145,14 @@ function ReportIssueModal({ dark, onClose, defaultProjectId = '' }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={`block text-xs font-semibold mb-1 ${heading}`}>Project *</label>
-              <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setWorkOrderId(''); }} className={inputCls}>
+              <select
+                value={projectId}
+                onChange={(e) => { setProjectId(e.target.value); setWorkOrderId(''); }}
+                className={selectCls}
+                style={{ colorScheme: dark ? 'dark' : 'light' }}
+              >
                 {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
+                  <option key={p.id} value={p.id} className={dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-800'}>
                     {p.name} — {p.client}
                   </option>
                 ))}
@@ -154,10 +160,15 @@ function ReportIssueModal({ dark, onClose, defaultProjectId = '' }) {
             </div>
             <div>
               <label className={`block text-xs font-semibold mb-1 ${heading}`}>Work Order</label>
-              <select value={workOrderId} onChange={(e) => setWorkOrderId(e.target.value)} className={inputCls}>
-                <option value="">No work order</option>
+              <select
+                value={workOrderId}
+                onChange={(e) => setWorkOrderId(e.target.value)}
+                className={selectCls}
+                style={{ colorScheme: dark ? 'dark' : 'light' }}
+              >
+                <option value="" className={dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-800'}>No work order</option>
                 {projectWorkOrders.map((w) => (
-                  <option key={w.id} value={w.id}>
+                  <option key={w.id} value={w.id} className={dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-800'}>
                     {w.title}
                   </option>
                 ))}
@@ -179,9 +190,14 @@ function ReportIssueModal({ dark, onClose, defaultProjectId = '' }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={`block text-xs font-semibold mb-1 ${heading}`}>Category</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className={inputCls}>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className={selectCls}
+                style={{ colorScheme: dark ? 'dark' : 'light' }}
+              >
                 {ISSUE_CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
+                  <option key={c} value={c} className={dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-800'}>
                     {c}
                   </option>
                 ))}
@@ -189,9 +205,14 @@ function ReportIssueModal({ dark, onClose, defaultProjectId = '' }) {
             </div>
             <div>
               <label className={`block text-xs font-semibold mb-1 ${heading}`}>Priority</label>
-              <select value={priority} onChange={(e) => setPriority(e.target.value)} className={inputCls}>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                className={selectCls}
+                style={{ colorScheme: dark ? 'dark' : 'light' }}
+              >
                 {PRIORITIES.map((p) => (
-                  <option key={p} value={p}>
+                  <option key={p} value={p} className={dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-800'}>
                     {p.charAt(0).toUpperCase() + p.slice(1)}
                   </option>
                 ))}
@@ -216,7 +237,7 @@ function ReportIssueModal({ dark, onClose, defaultProjectId = '' }) {
             <div className="flex items-start gap-3">
               <label
                 className={`flex w-36 h-24 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed ${
-                  screenshot ? 'border-emerald-500/40 bg-emerald-500/5' : dark ? 'border-zinc-700 bg-zinc-850' : 'border-zinc-300 bg-zinc-50'
+                  screenshot ? 'border-emerald-500/40 bg-emerald-500/5' : dark ? 'border-zinc-700 bg-zinc-900' : 'border-zinc-300 bg-zinc-50'
                 }`}
               >
                 {screenshot ? (
@@ -255,9 +276,14 @@ function ReportIssueModal({ dark, onClose, defaultProjectId = '' }) {
 
           <div>
             <label className={`block text-xs font-semibold mb-1 ${heading}`}>Assign To *</label>
-            <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} className={inputCls}>
+            <select
+              value={assignedTo}
+              onChange={(e) => setAssignedTo(e.target.value)}
+              className={selectCls}
+              style={{ colorScheme: dark ? 'dark' : 'light' }}
+            >
               {devs.map((d) => (
-                <option key={d.id} value={d.id}>
+                <option key={d.id} value={d.id} className={dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-800'}>
                   {d.name} — {d.title}
                 </option>
               ))}
