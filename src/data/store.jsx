@@ -27,7 +27,15 @@ function uid(prefix) {
   return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+const _recentNotifs = new Map();
+
 function makeNotification(type, title, opts = {}) {
+  const notifKey = `${type}:${title}:${opts.workOrderId || ''}:${opts.issueId || ''}`;
+  const now = Date.now();
+  const lastTime = _recentNotifs.get(notifKey) || 0;
+  const isDuplicate = now - lastTime < 3500;
+  _recentNotifs.set(notifKey, now);
+
   const notif = {
     id: uid('n'),
     type,
@@ -38,19 +46,25 @@ function makeNotification(type, title, opts = {}) {
     projectId: opts.projectId || null,
     workOrderId: opts.workOrderId || null,
     issueId: opts.issueId || null,
+    recipient: opts.recipient || null,
     read: false,
   };
-  try {
-    fetch('/api/notifications/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(notif),
-    }).catch((err) => {
-      console.warn('[project-soft] Failed to save notification to backend:', err);
-    });
-  } catch {
-    // ignore
+
+  // Only dispatch network request once per unique notification event
+  if (!isDuplicate) {
+    try {
+      fetch('/api/notifications/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notif),
+      }).catch((err) => {
+        console.warn('[project-soft] Failed to save notification to backend:', err);
+      });
+    } catch {
+      // ignore
+    }
   }
+
   return notif;
 }
 
@@ -453,18 +467,31 @@ export function AppProvider({ children }) {
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data)) {
+          // Deduplicate by ID and content signature
+          const seenIds = new Set();
+          const seenSignatures = new Set();
+          const uniqueData = data.filter((d) => {
+            if (!d) return false;
+            if (d.id && seenIds.has(d.id)) return false;
+            const sig = `${d.type || ''}:${(d.title || '').trim()}:${d.workOrderId || ''}:${d.issueId || ''}`;
+            if (seenSignatures.has(sig)) return false;
+            if (d.id) seenIds.add(d.id);
+            seenSignatures.add(sig);
+            return true;
+          });
+
           setDb((prev) => {
             const prevNotifs = prev.notifications || [];
             const isSame =
-              prevNotifs.length === data.length &&
-              data.every((d, i) => {
+              prevNotifs.length === uniqueData.length &&
+              uniqueData.every((d, i) => {
                 const p = prevNotifs[i];
                 return p && p.id === d.id && p.read === d.read && p.title === d.title;
               });
             if (isSame) return prev;
             return {
               ...prev,
-              notifications: data,
+              notifications: uniqueData,
             };
           });
         }
@@ -754,6 +781,7 @@ export function AppProvider({ children }) {
             `Work Order "${newWo.id} · ${newWo.title}" assigned to ${targetDev?.name || 'Developer'} in PTD "${targetPtd?.name || targetPtd?.ref || 'PTD'}"`,
             {
               actor: currentUser?.name || 'Project Manager',
+              recipient: newWo.assignee,
               date: now,
               time,
               projectId: newWo.projectId,
@@ -936,6 +964,7 @@ export function AppProvider({ children }) {
             `Work Order "${target.id} · ${target.title}" reassigned to ${newDev?.name || 'Developer'}${project ? ` in ${project.name}` : ''}`,
             {
               actor: currentUser?.name || 'Project Manager',
+              recipient: newAssigneeId,
               date: today,
               time,
               projectId: target.projectId,
@@ -1543,6 +1572,7 @@ export function AppProvider({ children }) {
       notifications: [
         makeNotification('issue', `New issue "${newIssue.title}" assigned to ${dev?.name || 'a developer'}${project ? ` in ${project.name}` : ''}`, {
           actor: currentUser?.name || 'User',
+          recipient: newIssue.assignedTo,
           date: today,
           time,
           projectId: newIssue.projectId,
@@ -1660,15 +1690,21 @@ export function AppProvider({ children }) {
     }
   };
 
-  const markAllNotificationsRead = () => {
+  const markAllNotificationsRead = (targetIds) => {
     setDb((prev) => ({
       ...prev,
-      notifications: (prev.notifications || []).map((n) => (n.read ? n : { ...n, read: true })),
+      notifications: (prev.notifications || []).map((n) => {
+        if (targetIds && Array.isArray(targetIds)) {
+          return targetIds.includes(n.id) ? { ...n, read: true } : n;
+        }
+        return n.read ? n : { ...n, read: true };
+      }),
     }));
     try {
       fetch('/api/notifications/mark-all-read/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(targetIds && Array.isArray(targetIds) ? { ids: targetIds } : {}),
       }).catch((err) => {
         console.warn('[project-soft] Failed to mark all notifications read in backend:', err);
       });

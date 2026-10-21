@@ -5,6 +5,7 @@ import PMDock from './PMDock.jsx';
 import DevDock from './DevDock.jsx';
 import { appsForRole } from '../data/dockConfig.js';
 import { useApp } from '../data/context.js';
+import { isNotificationForUser } from '../data/notificationUtils.js';
 // PM views
 import PMDashboard from '../pm/Dashboard.jsx';
 import Projects from '../pm/Projects.jsx';
@@ -93,7 +94,9 @@ export default function AppShell({ initialApp = 'dashboard' }) {
   const filtered = apps.filter((app) =>
     app.name.toLowerCase().includes(query.trim().toLowerCase()),
   );
-  const unread = (db.notifications || []).filter((n) => !n.read).length;
+  const unread = (db.notifications || []).filter(
+    (n) => !n.read && isNotificationForUser(n, currentUser, db),
+  ).length;
   const chatUnread = (db.messages || []).filter((m) => m.to === currentUser?.id && !m.read).length;
   const pendingPtds = (db.ptds || []).filter((p) => p.status === 'requested' || p.status === 'pending').length;
   const pendingWorkOrders =

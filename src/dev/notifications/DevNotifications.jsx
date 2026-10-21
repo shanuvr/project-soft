@@ -13,6 +13,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { useApp } from '../../data/context.js';
+import { isNotificationForUser } from '../../data/notificationUtils.js';
 
 const TYPE_META = {
   assignment: { label: 'New assignment', icon: UserPlus, accent: 'text-violet-500', box: 'bg-violet-500/15 border-violet-500/25' },
@@ -41,7 +42,7 @@ function fmtGroupLabel(date) {
 }
 
 export default function DevNotifications({ dark }) {
-  const { db, markNotificationRead, markAllNotificationsRead } = useApp();
+  const { currentUser, db, markNotificationRead, markAllNotificationsRead } = useApp();
 
   const [tab, setTab] = useState('all');
   const [query, setQuery] = useState('');
@@ -53,8 +54,9 @@ export default function DevNotifications({ dark }) {
 
   const notifications = useMemo(() => {
     const all = (db.notifications || []).slice();
-    return all.sort((a, b) => `${b.date || ''}${b.time || ''}`.localeCompare(`${a.date || ''}${a.time || ''}`));
-  }, [db.notifications]);
+    const relevant = all.filter((n) => isNotificationForUser(n, currentUser, db));
+    return relevant.sort((a, b) => `${b.date || ''}${b.time || ''}`.localeCompare(`${a.date || ''}${a.time || ''}`));
+  }, [db.notifications, db.workOrders, db.issues, db.developers, db.users, currentUser]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -66,6 +68,13 @@ export default function DevNotifications({ dark }) {
   }, [notifications, tab, query]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleMarkAllRead = () => {
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
+    if (unreadIds.length > 0) {
+      markAllNotificationsRead(unreadIds);
+    }
+  };
 
   const groups = useMemo(() => {
     const map = new Map();
@@ -154,7 +163,7 @@ export default function DevNotifications({ dark }) {
           </p>
         </div>
         <button
-          onClick={markAllNotificationsRead}
+          onClick={handleMarkAllRead}
           disabled={unreadCount === 0}
           className="flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold text-zinc-500 hover:text-zinc-900 disabled:opacity-40 disabled:hover:text-zinc-500 cursor-pointer"
         >
