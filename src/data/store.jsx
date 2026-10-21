@@ -539,6 +539,45 @@ export function AppProvider({ children }) {
     return () => clearInterval(timer);
   }, []);
 
+  // Load and sync calendar events from backend
+  useEffect(() => {
+    const fetchCalendarEventsFromDb = async () => {
+      try {
+        const res = await fetch('/api/calendar-events/');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setDb((prev) => {
+            const prevEvents = prev.calendarEvents || [];
+            const isSame =
+              prevEvents.length === data.length &&
+              data.every((d, i) => {
+                const p = prevEvents[i];
+                return (
+                  p &&
+                  p.id === d.id &&
+                  p.title === d.title &&
+                  p.date === d.date &&
+                  p.isDone === d.isDone &&
+                  p.eventType === d.eventType
+                );
+              });
+            if (isSame) return prev;
+            return {
+              ...prev,
+              calendarEvents: data,
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('[project-soft] Failed to fetch calendar events from backend:', err);
+      }
+    };
+    fetchCalendarEventsFromDb();
+    const timer = setInterval(fetchCalendarEventsFromDb, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
   const acceptPtd = (id) => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -1929,6 +1968,61 @@ export function AppProvider({ children }) {
     });
   };
 
+  const addCalendarEvent = async (eventData) => {
+    try {
+      const res = await fetch('/api/calendar-events/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(eventData),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        setDb((prev) => ({
+          ...prev,
+          calendarEvents: [created, ...(prev.calendarEvents || [])],
+        }));
+        return created;
+      }
+    } catch (err) {
+      console.warn('[project-soft] Failed to create calendar event on backend:', err);
+    }
+    const fallbackId = `ev-${Date.now()}`;
+    const fallbackItem = { ...eventData, id: fallbackId, isDone: false };
+    setDb((prev) => ({
+      ...prev,
+      calendarEvents: [fallbackItem, ...(prev.calendarEvents || [])],
+    }));
+    return fallbackItem;
+  };
+
+  const updateCalendarEvent = async (id, patch) => {
+    try {
+      await fetch(`/api/calendar-events/${id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+    } catch (err) {
+      console.warn('[project-soft] Failed to update calendar event on backend:', err);
+    }
+    setDb((prev) => ({
+      ...prev,
+      calendarEvents: (prev.calendarEvents || []).map((e) => (e.id === id ? { ...e, ...patch } : e)),
+    }));
+  };
+
+  const deleteCalendarEvent = async (id) => {
+    try {
+      await fetch(`/api/calendar-events/${id}/`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn('[project-soft] Failed to delete calendar event on backend:', err);
+    }
+    setDb((prev) => ({
+      ...prev,
+      calendarEvents: (prev.calendarEvents || []).filter((e) => e.id !== id),
+    }));
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1978,6 +2072,9 @@ export function AppProvider({ children }) {
         leadsLoading,
         downloadLeadsFile,
         refreshLeadsFiles: fetchLeadsFilesFromBackend,
+        addCalendarEvent,
+        updateCalendarEvent,
+        deleteCalendarEvent,
       }}
     >
       {children}

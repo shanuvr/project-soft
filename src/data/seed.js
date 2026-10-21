@@ -242,5 +242,6 @@ export function createSeed() {
     ],
 
     reportEntries: [],
+    calendarEvents: [],
   };
 }
