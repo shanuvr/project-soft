@@ -217,7 +217,6 @@ export function AppProvider({ children }) {
   const syncDecisionToAccounts = async (target, action, remark = '') => {
     const ptdId = target?.ptdId || target?.id;
     const orderId = target?.orderId;
-    const accountsUrl = (import.meta.env.VITE_ACCOUNTS_API_URL || '').replace(/\/$/, '');
     try {
       await fetch('/api/ptds/decision/', {
         method: 'POST',
@@ -230,33 +229,16 @@ export function AppProvider({ children }) {
           decidedBy: currentUser?.name || 'Project Manager',
         }),
       });
-      if (accountsUrl) {
-        await fetch(`${accountsUrl}/api/ptda/external-decision/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ptdId,
-            orderId,
-            action,
-            remark,
-            decidedBy: currentUser?.name || 'Project Manager',
-          }),
-        }).catch(() => {});
-      }
     } catch (err) {
       console.warn('[project-soft] Failed to sync decision to accounts soft:', err);
     }
   };
 
-  // Sync assigned PTD requests from Project Soft backend / Account Soft
+  // Sync assigned PTD requests from Project Soft backend
   useEffect(() => {
     const fetchIncomingFromAccounts = async () => {
-      const accountsUrl = (import.meta.env.VITE_ACCOUNTS_API_URL || '').replace(/\/$/, '');
       try {
-        let res = await fetch('/api/ptds/');
-        if (!res.ok && accountsUrl) {
-          res = await fetch(`${accountsUrl}/api/ptda/external-requests/`);
-        }
+        const res = await fetch('/api/ptds/');
         if (!res.ok) return;
         const incoming = await res.json();
         if (!Array.isArray(incoming)) return;
