@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bug,
   Camera,
+  Check,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Flag,
   Folder,
@@ -54,6 +56,97 @@ function PriorityBadge({ priority }) {
     <span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${PRIORITY_META[priority] || PRIORITY_META.medium}`}>
       {priority}
     </span>
+  );
+}
+
+function ModalSelect({ dark, value, onChange, options, placeholder = 'Select...', direction = 'down' }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setOpen(false);
+      }
+    }
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('keydown', handleKeyDown);
+      };
+    }
+  }, [open]);
+
+  const selectedOption = options.find((o) => String(o.value) === String(value));
+
+  return (
+    <div className="relative w-full" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        className={`w-full flex items-center justify-between gap-2 rounded-xl border px-3.5 py-2.5 text-xs outline-none transition-all cursor-pointer ${
+          dark
+            ? 'bg-zinc-900 border-zinc-700 text-white focus:border-violet-500'
+            : 'bg-white border-zinc-300 text-zinc-800 focus:border-violet-500'
+        } ${open ? 'border-violet-500 ring-1 ring-violet-500/20' : ''}`}
+      >
+        <span className="truncate text-left font-medium">
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 transition-transform duration-200 ${
+            open ? 'rotate-180 text-violet-400' : dark ? 'text-zinc-400' : 'text-zinc-500'
+          }`}
+        />
+      </button>
+
+      {open && (
+        <div
+          className={`absolute left-0 right-0 ${
+            direction === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+          } z-50 max-h-56 overflow-y-auto rounded-xl border p-1 shadow-2xl backdrop-blur-xl ${
+            dark
+              ? 'bg-zinc-900 border-zinc-700 shadow-black/80'
+              : 'bg-white border-zinc-200 shadow-zinc-400/20'
+          }`}
+        >
+          {options.length === 0 ? (
+            <div className={`px-3 py-2 text-xs ${dark ? 'text-zinc-400' : 'text-zinc-500'}`}>No options</div>
+          ) : (
+            options.map((opt) => {
+              const isSelected = String(opt.value) === String(value);
+              return (
+                <button
+                  key={String(opt.value)}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.value);
+                    setOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between rounded-lg px-3 py-2 text-xs text-left transition-colors cursor-pointer ${
+                    isSelected
+                      ? dark
+                        ? 'bg-violet-600/25 text-violet-200 font-semibold'
+                        : 'bg-violet-50 text-violet-700 font-semibold'
+                      : dark
+                        ? 'text-zinc-200 hover:bg-zinc-800 hover:text-white'
+                        : 'text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900'
+                  }`}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {isSelected && <Check className="h-3.5 w-3.5 shrink-0 text-violet-400 ml-2" />}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -112,7 +205,6 @@ function ReportIssueModal({ dark, onClose, defaultProjectId = '' }) {
     ? 'bg-zinc-900 border-zinc-700 text-white placeholder-zinc-500 focus:border-violet-500'
     : 'bg-white border-zinc-300 text-zinc-800 placeholder-zinc-400 focus:border-violet-500';
   const inputCls = `w-full rounded-xl border px-3.5 py-2.5 text-xs outline-none transition-all ${inputBg}`;
-  const selectCls = `${inputCls} cursor-pointer [&>option]:bg-white [&>option]:text-zinc-800 ${dark ? '[&>option]:bg-zinc-900 [&>option]:text-zinc-100' : ''}`;
 
   return (
     <div
@@ -145,34 +237,35 @@ function ReportIssueModal({ dark, onClose, defaultProjectId = '' }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={`block text-xs font-semibold mb-1 ${heading}`}>Project *</label>
-              <select
+              <ModalSelect
+                dark={dark}
                 value={projectId}
-                onChange={(e) => { setProjectId(e.target.value); setWorkOrderId(''); }}
-                className={selectCls}
-                style={{ colorScheme: dark ? 'dark' : 'light' }}
-              >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id} className={dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-800'}>
-                    {p.name} — {p.client}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => {
+                  setProjectId(val);
+                  setWorkOrderId('');
+                }}
+                options={projects.map((p) => ({
+                  value: p.id,
+                  label: `${p.name} — ${p.client}`,
+                }))}
+                placeholder="Select project..."
+              />
             </div>
             <div>
               <label className={`block text-xs font-semibold mb-1 ${heading}`}>Work Order</label>
-              <select
+              <ModalSelect
+                dark={dark}
                 value={workOrderId}
-                onChange={(e) => setWorkOrderId(e.target.value)}
-                className={selectCls}
-                style={{ colorScheme: dark ? 'dark' : 'light' }}
-              >
-                <option value="" className={dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-800'}>No work order</option>
-                {projectWorkOrders.map((w) => (
-                  <option key={w.id} value={w.id} className={dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-800'}>
-                    {w.title}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setWorkOrderId(val)}
+                options={[
+                  { value: '', label: 'No work order' },
+                  ...projectWorkOrders.map((w) => ({
+                    value: w.id,
+                    label: w.title,
+                  })),
+                ]}
+                placeholder="No work order"
+              />
             </div>
           </div>
 
@@ -190,33 +283,27 @@ function ReportIssueModal({ dark, onClose, defaultProjectId = '' }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={`block text-xs font-semibold mb-1 ${heading}`}>Category</label>
-              <select
+              <ModalSelect
+                dark={dark}
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className={selectCls}
-                style={{ colorScheme: dark ? 'dark' : 'light' }}
-              >
-                {ISSUE_CATEGORIES.map((c) => (
-                  <option key={c} value={c} className={dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-800'}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setCategory(val)}
+                options={ISSUE_CATEGORIES.map((c) => ({
+                  value: c,
+                  label: c,
+                }))}
+              />
             </div>
             <div>
               <label className={`block text-xs font-semibold mb-1 ${heading}`}>Priority</label>
-              <select
+              <ModalSelect
+                dark={dark}
                 value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                className={selectCls}
-                style={{ colorScheme: dark ? 'dark' : 'light' }}
-              >
-                {PRIORITIES.map((p) => (
-                  <option key={p} value={p} className={dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-800'}>
-                    {p.charAt(0).toUpperCase() + p.slice(1)}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setPriority(val)}
+                options={PRIORITIES.map((p) => ({
+                  value: p,
+                  label: p.charAt(0).toUpperCase() + p.slice(1),
+                }))}
+              />
             </div>
           </div>
 
@@ -276,18 +363,17 @@ function ReportIssueModal({ dark, onClose, defaultProjectId = '' }) {
 
           <div>
             <label className={`block text-xs font-semibold mb-1 ${heading}`}>Assign To *</label>
-            <select
+            <ModalSelect
+              dark={dark}
               value={assignedTo}
-              onChange={(e) => setAssignedTo(e.target.value)}
-              className={selectCls}
-              style={{ colorScheme: dark ? 'dark' : 'light' }}
-            >
-              {devs.map((d) => (
-                <option key={d.id} value={d.id} className={dark ? 'bg-zinc-900 text-zinc-100' : 'bg-white text-zinc-800'}>
-                  {d.name} — {d.title}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setAssignedTo(val)}
+              options={devs.map((d) => ({
+                value: d.id,
+                label: `${d.name} — ${d.title}`,
+              }))}
+              placeholder="Select developer..."
+              direction="up"
+            />
             <p className={`mt-1 text-[11px] ${muted}`}>
               Reported by {currentUser?.name}, assigned to the selected developer.
             </p>
