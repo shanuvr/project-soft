@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   CreditCard,
+  Download,
   File,
   FileText,
   Film,
@@ -18,10 +19,13 @@ const TYPE_META = {
   Logo: { icon: ImageIcon, cls: 'text-violet-500 bg-violet-500/10 border-violet-500/20' },
   'Business Card': { icon: CreditCard, cls: 'text-amber-500 bg-amber-500/10 border-amber-500/20' },
   'Order Document': { icon: FileText, cls: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
+  'SRS Document': { icon: FileText, cls: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20' },
+  'Voice Clip': { icon: Film, cls: 'text-rose-500 bg-rose-500/10 border-rose-500/20' },
   Verification: { icon: ShieldCheck, cls: 'text-sky-500 bg-sky-500/10 border-sky-500/20' },
   Photo: { icon: ImageIcon, cls: 'text-fuchsia-500 bg-fuchsia-500/10 border-fuchsia-500/20' },
   Video: { icon: Film, cls: 'text-rose-500 bg-rose-500/10 border-rose-500/20' },
   Documentation: { icon: FileText, cls: 'text-cyan-500 bg-cyan-500/10 border-cyan-500/20' },
+  Other: { icon: File, cls: 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20' },
 };
 const TYPE_DEFAULT = { icon: File, cls: 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20' };
 
@@ -100,13 +104,25 @@ function OrderStatusChip({ status }) {
 }
 
 export default function Files({ dark }) {
-  const { currentUser } = useApp();
+  const { currentUser, leadsOrders = [], leadsLoading, downloadLeadsFile } = useApp();
   const isPm = currentUser?.role === 'pm' || currentUser?.role === 'admin';
 
-  const [orders, setOrders] = useState(INITIAL_ORDERS);
-  const [selectedId, setSelectedId] = useState(INITIAL_ORDERS[0].id);
+  const [localOrders, setLocalOrders] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState('');
   const [showUpload, setShowUpload] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
+
+  const orders = useMemo(() => {
+    if (leadsOrders && leadsOrders.length > 0) {
+      if (localOrders.length === 0) return leadsOrders;
+      return leadsOrders.map((lo) => {
+        const found = localOrders.find((o) => o.id === lo.id);
+        return found || lo;
+      });
+    }
+    return localOrders.length > 0 ? localOrders : INITIAL_ORDERS;
+  }, [leadsOrders, localOrders]);
 
   const selected = orders.find((o) => o.id === selectedId) || orders[0];
 
@@ -121,19 +137,34 @@ export default function Files({ dark }) {
   });
 
   const addFiles = (projectId, files) => {
-    setOrders((prev) =>
-      prev.map((o) =>
+    setLocalOrders((prev) => {
+      const base = prev.length > 0 ? prev : orders;
+      return base.map((o) =>
         o.id === projectId ? { ...o, files: [...files, ...o.files] } : o,
-      ),
-    );
+      );
+    });
   };
 
   const deleteFile = (projectId, fileId) => {
-    setOrders((prev) =>
-      prev.map((o) =>
+    setLocalOrders((prev) => {
+      const base = prev.length > 0 ? prev : orders;
+      return base.map((o) =>
         o.id === projectId ? { ...o, files: o.files.filter((f) => f.id !== fileId) } : o,
-      ),
-    );
+      );
+    });
+  };
+
+  const handleCardClick = async (f) => {
+    if (!f.url) {
+      alert(`Download link not available for "${f.name}".`);
+      return;
+    }
+    setDownloadingId(f.id);
+    try {
+      await downloadLeadsFile(f);
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   const panel = dark ? 'border-zinc-800 bg-zinc-900/70' : 'border-zinc-200 bg-white/80';
@@ -156,26 +187,39 @@ export default function Files({ dark }) {
   const renderDocCard = (f) => {
     const meta = typeMeta(f.type);
     const Icon = meta.icon;
+    const isDownloading = downloadingId === f.id;
     return (
       <div
         key={f.id}
-        className={`group relative flex flex-col rounded-2xl border p-4 transition-all ${border} ${rowHover}`}
+        onClick={() => handleCardClick(f)}
+        title="Click to download from Leads Soft"
+        className={`group relative flex flex-col rounded-2xl border p-4 transition-all cursor-pointer ${border} ${rowHover}`}
       >
         <div className="flex items-start justify-between">
           <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${meta.cls}`}>
             <Icon className="h-6 w-6" />
           </div>
-          {isPm && (
-            <button
-              onClick={() => {
-                if (window.confirm(`Delete "${f.name}"?`)) deleteFile(selected.id, f.id);
-              }}
-              title="Delete document"
-              className="rounded-lg p-1 text-zinc-400 transition-colors cursor-pointer hover:text-red-400"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <div className="flex items-center gap-1.5">
+            {isDownloading ? (
+              <span className="text-[10px] font-semibold text-violet-400 animate-pulse">Downloading...</span>
+            ) : (
+              <span className="rounded-lg p-1 text-zinc-400 transition-colors group-hover:text-violet-400" title="Download document">
+                <Download className="h-3.5 w-3.5" />
+              </span>
+            )}
+            {isPm && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`Delete "${f.name}"?`)) deleteFile(selected.id, f.id);
+                }}
+                title="Delete document"
+                className="rounded-lg p-1 text-zinc-400 transition-colors cursor-pointer hover:text-red-400"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         </div>
         <div className="mt-3 min-w-0">
           <span className={`text-xs font-semibold ${heading}`}>{f.name}</span>
@@ -199,10 +243,17 @@ export default function Files({ dark }) {
       {/* Header */}
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className={`text-2xl font-bold ${heading}`}>Files</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className={`text-2xl font-bold ${heading}`}>Files</h1>
+            {leadsOrders?.length > 0 && (
+              <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400 border border-emerald-500/20">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Leads Soft
+              </span>
+            )}
+          </div>
           <p className={`mt-1 text-xs ${muted}`}>
-            Orders and every document collected with them — logos, business cards, photos, videos, KYC and
-            confirmations.
+            Orders and client reference documents uploaded in Leads Soft &ldquo;Client Details&rdquo;. Click any card to download.
           </p>
         </div>
       </div>

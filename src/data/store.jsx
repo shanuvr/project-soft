@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppContext } from './context';
 import { createSeed } from './seed';
 
@@ -98,6 +98,8 @@ function loadDb() {
 export function AppProvider({ children }) {
   const [db, setDb] = useState(loadDb);
   const [currentUser, setCurrentUser] = useState(() => readKey(SESSION_KEY));
+  const [leadsOrders, setLeadsOrders] = useState([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
 
   // Persist db to localStorage whenever it changes
   useEffect(() => {
@@ -365,6 +367,57 @@ export function AppProvider({ children }) {
     const timer = setInterval(fetchWorkOrdersFromDb, 4000);
     return () => clearInterval(timer);
   }, []);
+
+  // Fetch client files from Leads Soft
+  const fetchLeadsFilesFromBackend = useCallback(async () => {
+    try {
+      setLeadsLoading(true);
+      const res = await fetch('/api/leads-files/');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setLeadsOrders(data);
+      }
+    } catch (err) {
+      console.warn('[project-soft] Failed to fetch leads files:', err);
+    } finally {
+      setLeadsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLeadsFilesFromBackend();
+    const timer = setInterval(fetchLeadsFilesFromBackend, 6000);
+    return () => clearInterval(timer);
+  }, [fetchLeadsFilesFromBackend]);
+
+  const downloadLeadsFile = async (file) => {
+    if (!file || !file.url) {
+      alert('Download URL not available for this file.');
+      return;
+    }
+    const downloadUrl = `/api/leads-files/download/?url=${encodeURIComponent(file.url)}`;
+    try {
+      const res = await fetch(downloadUrl);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      const blob = await res.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = blobUrl;
+      a.download = file.name || 'download';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(blobUrl);
+      document.body.removeChild(a);
+    } catch (e) {
+      console.error('[project-soft] Failed to download leads file:', e);
+      alert(`Could not download "${file.name}": ${e.message}`);
+    }
+  };
 
   // Fetch real developers from SystemSoft Core
   useEffect(() => {
@@ -1921,6 +1974,10 @@ export function AppProvider({ children }) {
         addReportEntry,
         submitDailyReport,
         deleteReportEntry,
+        leadsOrders,
+        leadsLoading,
+        downloadLeadsFile,
+        refreshLeadsFiles: fetchLeadsFilesFromBackend,
       }}
     >
       {children}
