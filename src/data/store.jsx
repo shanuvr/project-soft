@@ -28,7 +28,7 @@ function uid(prefix) {
 }
 
 function makeNotification(type, title, opts = {}) {
-  return {
+  const notif = {
     id: uid('n'),
     type,
     title,
@@ -40,6 +40,18 @@ function makeNotification(type, title, opts = {}) {
     issueId: opts.issueId || null,
     read: false,
   };
+  try {
+    fetch('/api/notifications/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(notif),
+    }).catch((err) => {
+      console.warn('[project-soft] Failed to save notification to backend:', err);
+    });
+  } catch {
+    // ignore
+  }
+  return notif;
 }
 
 let _woCounter = 0;
@@ -430,6 +442,38 @@ export function AppProvider({ children }) {
     };
     fetchReportEntriesFromDb();
     const timer = setInterval(fetchReportEntriesFromDb, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Load and sync notifications from MySQL backend
+  useEffect(() => {
+    const fetchNotificationsFromDb = async () => {
+      try {
+        const res = await fetch('/api/notifications/');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setDb((prev) => {
+            const prevNotifs = prev.notifications || [];
+            const isSame =
+              prevNotifs.length === data.length &&
+              data.every((d, i) => {
+                const p = prevNotifs[i];
+                return p && p.id === d.id && p.read === d.read && p.title === d.title;
+              });
+            if (isSame) return prev;
+            return {
+              ...prev,
+              notifications: data,
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('[project-soft] Failed to fetch notifications from backend:', err);
+      }
+    };
+    fetchNotificationsFromDb();
+    const timer = setInterval(fetchNotificationsFromDb, 4000);
     return () => clearInterval(timer);
   }, []);
 
@@ -1603,6 +1647,17 @@ export function AppProvider({ children }) {
       ...prev,
       notifications: (prev.notifications || []).map((n) => (n.id === id ? { ...n, read: true } : n)),
     }));
+    try {
+      fetch(`/api/notifications/${id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ read: true }),
+      }).catch((err) => {
+        console.warn('[project-soft] Failed to mark notification read in backend:', err);
+      });
+    } catch {
+      // ignore
+    }
   };
 
   const markAllNotificationsRead = () => {
@@ -1610,6 +1665,16 @@ export function AppProvider({ children }) {
       ...prev,
       notifications: (prev.notifications || []).map((n) => (n.read ? n : { ...n, read: true })),
     }));
+    try {
+      fetch('/api/notifications/mark-all-read/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }).catch((err) => {
+        console.warn('[project-soft] Failed to mark all notifications read in backend:', err);
+      });
+    } catch {
+      // ignore
+    }
   };
 
   const addReportEntry = async ({ date, hours, workOrderId, notes }) => {
