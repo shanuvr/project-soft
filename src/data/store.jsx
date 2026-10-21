@@ -844,13 +844,16 @@ export function AppProvider({ children }) {
             `${currentUser?.name || 'Developer'} accepted Work Order "${target.id} · ${target.title}"${project ? ` in ${project.name}` : ''}`,
             {
               actor: currentUser?.name || 'Developer',
+              recipient: 'pm',
               date: today,
               time,
               projectId: target.projectId,
               workOrderId: target.id,
             },
           ),
-          ...(prev.notifications || []),
+          ...(prev.notifications || []).map((n) =>
+            n.workOrderId === target.id && n.type === 'assignment' ? { ...n, read: true } : n
+          ),
         ],
         activity: [
           {
@@ -904,13 +907,16 @@ export function AppProvider({ children }) {
             `${currentUser?.name || 'Developer'} rejected Work Order "${target.id} · ${target.title}" (Remark: ${cleanRemark})`,
             {
               actor: currentUser?.name || 'Developer',
+              recipient: 'pm',
               date: today,
               time,
               projectId: target.projectId,
               workOrderId: target.id,
             },
           ),
-          ...(prev.notifications || []),
+          ...(prev.notifications || []).map((n) =>
+            n.workOrderId === target.id && n.type === 'assignment' ? { ...n, read: true } : n
+          ),
         ],
         activity: [
           {

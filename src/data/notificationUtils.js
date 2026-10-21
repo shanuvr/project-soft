@@ -41,14 +41,19 @@ export function isNotificationForUser(n, currentUser, db = {}) {
     }
   }
 
-  // 4. Actor check: actions initiated by the current developer
+  // 4. Exclude self-acknowledgment notifications (acceptance/rejection alerts are for PM only)
+  const title = String(n.title || '').toLowerCase();
+  if (title.includes('accepted work order') || title.includes('rejected work order')) {
+    return false;
+  }
+
+  // 5. Actor check: actions initiated by the current developer
   if (n.actor) {
     const act = String(n.actor).toLowerCase();
     if (act === myName || act === myId || act === myUser) return true;
   }
 
-  // 5. Title mentions check
-  const title = String(n.title || '').toLowerCase();
+  // 6. Title mentions check
   if (myName && title.includes(myName)) return true;
 
   // If title explicitly mentions another developer / staff name, exclude it

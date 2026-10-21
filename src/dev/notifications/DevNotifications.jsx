@@ -52,6 +52,11 @@ export default function DevNotifications({ dark }) {
     [db.projects],
   );
 
+  const workOrdersById = useMemo(
+    () => Object.fromEntries((db.workOrders || []).map((w) => [w.id, w])),
+    [db.workOrders],
+  );
+
   const notifications = useMemo(() => {
     const all = (db.notifications || []).slice();
     const relevant = all.filter((n) => isNotificationForUser(n, currentUser, db));
@@ -100,6 +105,10 @@ export default function DevNotifications({ dark }) {
     const meta = TYPE_META[n.type] || TYPE_DEFAULT;
     const Icon = meta.icon;
     const unread = !n.read;
+    const wo = n.workOrderId ? workOrdersById[n.workOrderId] : null;
+    const isAccepted = wo && (wo.acceptedDate || !['assigned', 'rejected'].includes(wo.status));
+    const isRejected = wo && wo.status === 'rejected';
+    const isPending = wo && wo.status === 'assigned';
 
     return (
       <button
@@ -130,8 +139,25 @@ export default function DevNotifications({ dark }) {
               {meta.label}
             </span>
             {n.workOrderId && (
-              <span className="rounded bg-violet-500/10 px-1.5 py-0.5 font-mono font-bold text-violet-400">
-                {n.workOrderId}
+              <span className="inline-flex items-center gap-1">
+                <span className="rounded bg-violet-500/10 px-1.5 py-0.5 font-mono font-bold text-violet-400">
+                  {n.workOrderId}
+                </span>
+                {isAccepted && (
+                  <span className="rounded border border-emerald-500/30 bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-500 dark:text-emerald-400">
+                    Accepted
+                  </span>
+                )}
+                {isRejected && (
+                  <span className="rounded border border-rose-500/30 bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-rose-500 dark:text-rose-400">
+                    Rejected
+                  </span>
+                )}
+                {isPending && (
+                  <span className="rounded border border-amber-500/30 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-500 dark:text-amber-400">
+                    Pending acceptance
+                  </span>
+                )}
               </span>
             )}
             {n.issueId && (
