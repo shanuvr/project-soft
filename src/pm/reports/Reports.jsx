@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -48,10 +48,17 @@ function initials(name) {
 export default function Reports({ dark }) {
   const { db } = useApp();
 
-  const [selectedId, setSelectedId] = useState(() => {
-    const firstDev = (db.users || []).find((u) => u.role === 'dev');
-    return firstDev?.id || '';
-  });
+  const realDevs = useMemo(() => (db.users || []).filter((u) => u.role === 'dev'), [db.users]);
+  const [selectedId, setSelectedId] = useState(() => realDevs[0]?.id || '');
+
+  // Auto-select first real developer when developers load or if current selection is invalid
+  useEffect(() => {
+    if (!selectedId && realDevs.length > 0) {
+      setSelectedId(realDevs[0].id);
+    } else if (selectedId && realDevs.length > 0 && !realDevs.some((d) => d.id === selectedId)) {
+      setSelectedId(realDevs[0].id);
+    }
+  }, [realDevs, selectedId]);
   const [query, setQuery] = useState('');
   const [fromDate, setFromDate] = useState(() => {
     const d = new Date();

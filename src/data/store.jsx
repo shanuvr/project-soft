@@ -4,7 +4,7 @@ import { createSeed } from './seed';
 
 const DB_KEY = 'project-soft:db';
 const SESSION_KEY = 'project-soft:session';
-const SEED_VERSION = 30;
+const SEED_VERSION = 31;
 
 function readKey(key) {
   try {
@@ -365,22 +365,12 @@ export function AppProvider({ children }) {
         const res = await fetch('/api/developers/');
         if (!res.ok) return;
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setDb((prev) => {
-            const currentUsers = [...(prev.users || [])];
-            data.forEach((dev) => {
-              const existingIndex = currentUsers.findIndex(
-                (u) => u.id === dev.id || u.email?.toLowerCase() === dev.email?.toLowerCase()
-              );
-              if (existingIndex >= 0) {
-                currentUsers[existingIndex] = { ...currentUsers[existingIndex], ...dev };
-              } else {
-                currentUsers.push(dev);
-              }
-            });
+            const nonDevs = (prev.users || []).filter((u) => u.role !== 'dev');
             return {
               ...prev,
-              users: currentUsers,
+              users: [...nonDevs, ...data],
             };
           });
         }
@@ -389,6 +379,49 @@ export function AppProvider({ children }) {
       }
     };
     fetchDevelopers();
+    const timer = setInterval(fetchDevelopers, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Load and sync daily report entries from MySQL backend
+  useEffect(() => {
+    const fetchReportEntriesFromDb = async () => {
+      try {
+        const res = await fetch('/api/report-entries/');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setDb((prev) => {
+            const prevEntries = prev.reportEntries || [];
+            const isSame =
+              prevEntries.length === data.length &&
+              data.every((d, i) => {
+                const p = prevEntries[i];
+                return (
+                  p &&
+                  p.id === d.id &&
+                  p.userId === d.userId &&
+                  p.workOrderId === d.workOrderId &&
+                  p.date === d.date &&
+                  p.time === d.time &&
+                  p.hours === d.hours &&
+                  p.notes === d.notes
+                );
+              });
+            if (isSame) return prev;
+            return {
+              ...prev,
+              reportEntries: data,
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('[project-soft] Failed to fetch report entries from backend:', err);
+      }
+    };
+    fetchReportEntriesFromDb();
+    const timer = setInterval(fetchReportEntriesFromDb, 4000);
+    return () => clearInterval(timer);
   }, []);
 
   const acceptPtd = (id) => {
@@ -1570,25 +1603,42 @@ export function AppProvider({ children }) {
     }));
   };
 
-  const addReportEntry = ({ date, hours, workOrderId, notes }) => {
+  const addReportEntry = async ({ date, hours, workOrderId, notes }) => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     if (!currentUser?.id) return;
-    const entry = {
-      id: uid('re'),
+    const cleanHours = Math.max(0, Number(hours) || 0);
+    const cleanNotes = (notes || '').trim();
+    if (cleanHours <= 0 && !cleanNotes) return;
+
+    const payload = {
       userId: currentUser.id,
       date: date || today,
       time,
-      hours: Math.max(0, Number(hours) || 0),
+      hours: cleanHours,
       workOrderId: workOrderId || null,
-      notes: (notes || '').trim(),
+      notes: cleanNotes,
     };
-    if (entry.hours <= 0 && !entry.notes) return;
+
+    let entry = { ...payload, id: uid('re') };
+    try {
+      const res = await fetch('/api/report-entries/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        entry = await res.json();
+      }
+    } catch (err) {
+      console.warn('[project-soft] Failed to save report entry:', err);
+    }
+
     setDb((prev) => {
       const wo = (prev.workOrders || []).find((w) => w.id === entry.workOrderId) || null;
       return {
         ...prev,
-        reportEntries: [entry, ...(prev.reportEntries || [])],
+        reportEntries: [entry, ...(prev.reportEntries || []).filter((e) => e.id !== entry.id)],
         notifications: [
           makeNotification(
             'report',
@@ -1615,7 +1665,7 @@ export function AppProvider({ children }) {
     });
   };
 
-  const submitDailyReport = ({ date, entries }) => {
+  const submitDailyReport = async ({ date, entries }) => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     if (!currentUser?.id) return;
@@ -1628,8 +1678,8 @@ export function AppProvider({ children }) {
       .filter((entry) => entry.hours > 0 || entry.notes);
     if (!clean.length) return;
     const reportDate = date || today;
-    const created = clean.map((entry) => ({
-      id: uid('re'),
+
+    const payload = clean.map((entry) => ({
       userId: currentUser.id,
       date: reportDate,
       time,
@@ -1637,18 +1687,37 @@ export function AppProvider({ children }) {
       workOrderId: entry.workOrderId,
       notes: entry.notes,
     }));
+
+    let savedList = payload.map((p) => ({ ...p, id: uid('re') }));
+    try {
+      const res = await fetch('/api/report-entries/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        savedList = Array.isArray(data) ? data : [data];
+      }
+    } catch (err) {
+      console.warn('[project-soft] Failed to save daily report batch to backend:', err);
+    }
+
     const totalHours = clean.reduce((s, entry) => s + entry.hours, 0);
     const firstWo = clean.map((e) => e.workOrderId).filter(Boolean).length
       ? ` (${clean.filter((e) => e.workOrderId).length} linked work orders)`
       : '';
     setDb((prev) => ({
       ...prev,
-      reportEntries: [...created, ...(prev.reportEntries || [])],
+      reportEntries: [
+        ...savedList,
+        ...(prev.reportEntries || []).filter((e) => !savedList.some((s) => s.id === e.id)),
+      ],
       notifications: [
         makeNotification(
           'report',
           `${currentUser?.name || 'User'} submitted a daily report — ${clean.length} entries, ${totalHours}h${firstWo}`,
-          { actor: currentUser?.name || 'User', date: today, time, workOrderId: created[0]?.workOrderId || null },
+          { actor: currentUser?.name || 'User', date: today, time, workOrderId: savedList[0]?.workOrderId || null },
         ),
         ...(prev.notifications || []),
       ],
@@ -1666,7 +1735,12 @@ export function AppProvider({ children }) {
     }));
   };
 
-  const deleteReportEntry = (id) => {
+  const deleteReportEntry = async (id) => {
+    try {
+      await fetch(`/api/report-entries/${id}/`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn('[project-soft] Failed to delete report entry from backend:', err);
+    }
     setDb((prev) => ({
       ...prev,
       reportEntries: (prev.reportEntries || []).filter((e) => e.id !== id),
