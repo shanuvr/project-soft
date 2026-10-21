@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   CreditCard,
   Download,
@@ -6,14 +6,13 @@ import {
   FileText,
   Film,
   Image as ImageIcon,
+  Loader2,
   Paperclip,
+  RefreshCw,
   Search,
   ShieldCheck,
-  Trash2,
-  Upload,
 } from 'lucide-react';
 import { useApp } from '../../data/context.js';
-import FileUploadModal from './FileUploadModal.jsx';
 
 const TYPE_META = {
   Logo: { icon: ImageIcon, cls: 'text-violet-500 bg-violet-500/10 border-violet-500/20' },
@@ -36,62 +35,12 @@ const ORDER_STATUS_STYLES = {
   completed: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
 };
 
-const INITIAL_ORDERS = [
-  {
-    id: 'nf',
-    client: 'Nova Finance',
-    ref: 'NF-2211',
-    status: 'in-progress',
-    orderDate: '14 Aug 2026',
-    projectName: 'POS Terminal Rollout',
-    notes: 'POS terminals and payment tools for the head office branch.',
-    files: [
-      { id: 'nf-1', name: 'Nova Finance Logo.png', type: 'Logo', size: '142 KB', date: '14 Aug 2026', uploadedBy: 'A. Bello' },
-      { id: 'nf-2', name: 'Business Card — Front.pdf', type: 'Business Card', size: '96 KB', date: '14 Aug 2026', uploadedBy: 'A. Bello' },
-      { id: 'nf-3', name: 'Order Confirmation — NF-2211.pdf', type: 'Order Document', size: '218 KB', date: '14 Aug 2026', uploadedBy: 'A. Bello' },
-      { id: 'nf-4', name: 'CAC Certificate.pdf', type: 'Verification', size: '1.1 MB', date: '15 Aug 2026', uploadedBy: 'A. Bello' },
-      { id: 'nf-5', name: 'Storefront Photos.zip', type: 'Photo', size: '4.6 MB', date: '15 Aug 2026', uploadedBy: 'A. Bello' },
-      { id: 'nf-6', name: 'Branch Walkthrough.mp4', type: 'Video', size: '34 MB', date: '16 Aug 2026', uploadedBy: 'A. Bello' },
-    ],
-  },
-  {
-    id: 'zb',
-    client: 'Zenith Bank',
-    ref: 'ZB-1102',
-    status: 'in-progress',
-    orderDate: '02 Sep 2026',
-    projectName: 'Digital Banking Kiosk',
-    notes: 'Kiosk deployment and agent banking registration for the Ikeja branch.',
-    files: [
-      { id: 'zb-1', name: 'Zenith Bank Logo.svg', type: 'Logo', size: '58 KB', date: '02 Sep 2026', uploadedBy: 'T. Okoro' },
-      { id: 'zb-2', name: 'Business Card — Ibe.jpg', type: 'Business Card', size: '122 KB', date: '02 Sep 2026', uploadedBy: 'T. Okoro' },
-      { id: 'zb-3', name: 'Order Confirmation — ZB-1102.pdf', type: 'Order Document', size: '305 KB', date: '02 Sep 2026', uploadedBy: 'T. Okoro' },
-      { id: 'zb-4', name: 'Agent Verification.pdf', type: 'Verification', size: '640 KB', date: '03 Sep 2026', uploadedBy: 'T. Okoro' },
-      { id: 'zb-5', name: 'Kiosk Site Photos.zip', type: 'Photo', size: '7.2 MB', date: '03 Sep 2026', uploadedBy: 'T. Okoro' },
-    ],
-  },
-  {
-    id: 'mx',
-    client: 'MediCare Group',
-    ref: 'MX-2207',
-    status: 'on-hold',
-    orderDate: '18 Sep 2026',
-    projectName: 'Clinic Patient App',
-    notes: 'Wallet and patient records module for the Lekki clinic.',
-    files: [
-      { id: 'mx-1', name: 'MediCare Logo.png', type: 'Logo', size: '164 KB', date: '18 Sep 2026', uploadedBy: 'F. Adeyemi' },
-      { id: 'mx-2', name: 'Business Card — Dr. Amara.pdf', type: 'Business Card', size: '88 KB', date: '18 Sep 2026', uploadedBy: 'F. Adeyemi' },
-      { id: 'mx-3', name: 'Order Confirmation — MX-2207.pdf', type: 'Order Document', size: '240 KB', date: '18 Sep 2026', uploadedBy: 'F. Adeyemi' },
-      { id: 'mx-4', name: 'Clinic Interior Photos.zip', type: 'Photo', size: '5.1 MB', date: '19 Sep 2026', uploadedBy: 'F. Adeyemi' },
-    ],
-  },
-];
-
 function typeMeta(type) {
   return TYPE_META[type] || TYPE_DEFAULT;
 }
 
 function OrderStatusChip({ status }) {
+  if (!status) return null;
   return (
     <span
       className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
@@ -104,59 +53,28 @@ function OrderStatusChip({ status }) {
 }
 
 export default function Files({ dark }) {
-  const { currentUser, leadsOrders = [], leadsLoading, downloadLeadsFile } = useApp();
-  const isPm = currentUser?.role === 'pm' || currentUser?.role === 'admin';
+  const { leadsOrders = [], leadsLoading, downloadLeadsFile, refreshLeadsFiles } = useApp();
 
-  const [localOrders, setLocalOrders] = useState([]);
+  const orders = leadsOrders || [];
   const [selectedId, setSelectedId] = useState(null);
   const [query, setQuery] = useState('');
-  const [showUpload, setShowUpload] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
 
-  const orders = useMemo(() => {
-    if (leadsOrders && leadsOrders.length > 0) {
-      if (localOrders.length === 0) return leadsOrders;
-      return leadsOrders.map((lo) => {
-        const found = localOrders.find((o) => o.id === lo.id);
-        return found || lo;
-      });
-    }
-    return localOrders.length > 0 ? localOrders : INITIAL_ORDERS;
-  }, [leadsOrders, localOrders]);
-
-  const selected = orders.find((o) => o.id === selectedId) || orders[0];
+  const selected = orders.find((o) => o.id === selectedId) || orders[0] || null;
 
   const filteredOrders = orders.filter((o) => {
     const q = query.trim().toLowerCase();
     return (
       !q ||
-      o.client.toLowerCase().includes(q) ||
-      o.ref.toLowerCase().includes(q) ||
-      o.projectName.toLowerCase().includes(q)
+      (o.client && o.client.toLowerCase().includes(q)) ||
+      (o.ref && o.ref.toLowerCase().includes(q)) ||
+      (o.projectName && o.projectName.toLowerCase().includes(q))
     );
   });
 
-  const addFiles = (projectId, files) => {
-    setLocalOrders((prev) => {
-      const base = prev.length > 0 ? prev : orders;
-      return base.map((o) =>
-        o.id === projectId ? { ...o, files: [...files, ...o.files] } : o,
-      );
-    });
-  };
-
-  const deleteFile = (projectId, fileId) => {
-    setLocalOrders((prev) => {
-      const base = prev.length > 0 ? prev : orders;
-      return base.map((o) =>
-        o.id === projectId ? { ...o, files: o.files.filter((f) => f.id !== fileId) } : o,
-      );
-    });
-  };
-
   const handleCardClick = async (f) => {
     if (!f.url) {
-      alert(`Download link not available for "${f.name}".`);
+      alert(`Download URL not available for "${f.name}".`);
       return;
     }
     setDownloadingId(f.id);
@@ -179,10 +97,11 @@ export default function Files({ dark }) {
   const initials = (name) =>
     (name || '')
       .split(' ')
+      .filter(Boolean)
       .map((w) => w.charAt(0))
       .join('')
       .slice(0, 2)
-      .toUpperCase();
+      .toUpperCase() || 'CL';
 
   const renderDocCard = (f) => {
     const meta = typeMeta(f.type);
@@ -192,7 +111,7 @@ export default function Files({ dark }) {
       <div
         key={f.id}
         onClick={() => handleCardClick(f)}
-        title="Click to download from Leads Soft"
+        title="Click to download directly from Leads Soft"
         className={`group relative flex flex-col rounded-2xl border p-4 transition-all cursor-pointer ${border} ${rowHover}`}
       >
         <div className="flex items-start justify-between">
@@ -201,23 +120,13 @@ export default function Files({ dark }) {
           </div>
           <div className="flex items-center gap-1.5">
             {isDownloading ? (
-              <span className="text-[10px] font-semibold text-violet-400 animate-pulse">Downloading...</span>
-            ) : (
-              <span className="rounded-lg p-1 text-zinc-400 transition-colors group-hover:text-violet-400" title="Download document">
-                <Download className="h-3.5 w-3.5" />
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-violet-400 animate-pulse">
+                <Loader2 className="h-3 w-3 animate-spin" /> Downloading
               </span>
-            )}
-            {isPm && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (window.confirm(`Delete "${f.name}"?`)) deleteFile(selected.id, f.id);
-                }}
-                title="Delete document"
-                className="rounded-lg p-1 text-zinc-400 transition-colors cursor-pointer hover:text-red-400"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+            ) : (
+              <span className="rounded-lg p-1.5 text-zinc-400 transition-colors group-hover:bg-violet-500/10 group-hover:text-violet-400" title="Download document">
+                <Download className="h-4 w-4" />
+              </span>
             )}
           </div>
         </div>
@@ -245,29 +154,37 @@ export default function Files({ dark }) {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className={`text-2xl font-bold ${heading}`}>Files</h1>
-            {leadsOrders?.length > 0 && (
-              <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400 border border-emerald-500/20">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Leads Soft
-              </span>
+            <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400 border border-emerald-500/20">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Leads Soft Live
+            </span>
+            {refreshLeadsFiles && (
+              <button
+                onClick={() => refreshLeadsFiles()}
+                disabled={leadsLoading}
+                title="Refresh files from Leads Soft"
+                className="rounded-lg p-1 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${leadsLoading ? 'animate-spin text-violet-400' : ''}`} />
+              </button>
             )}
           </div>
           <p className={`mt-1 text-xs ${muted}`}>
-            Orders and client reference documents uploaded in Leads Soft &ldquo;Client Details&rdquo;. Click any card to download.
+            Real-time client details and uploaded files from Leads Soft. Clicking any document card downloads the file via API.
           </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 items-start lg:grid-cols-[320px_1fr]">
-        {/* LEFT: all orders */}
+        {/* LEFT: all orders from Leads Soft */}
         <div className={`rounded-2xl border p-3.5 ${panel} lg:sticky lg:top-0`}>
           <div className="flex items-center justify-between px-1 pb-2.5">
             <div>
               <h2 className={`text-sm font-bold ${heading}`}>Orders</h2>
-              <p className={`text-[11px] ${muted}`}>{orders.length} confirmed orders</p>
+              <p className={`text-[11px] ${muted}`}>{orders.length} Leads Soft records</p>
             </div>
             <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-bold text-violet-400 border border-violet-500/20">
-              {orders.filter((o) => o.files.length > 0).length} with docs
+              {orders.filter((o) => (o.files || []).length > 0).length} with files
             </span>
           </div>
 
@@ -276,7 +193,7 @@ export default function Files({ dark }) {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search orders..."
+              placeholder="Search client or ref..."
               className={`w-full rounded-xl border pl-8 pr-2 py-1.5 text-xs outline-none ${inputBg}`}
             />
           </div>
@@ -284,7 +201,7 @@ export default function Files({ dark }) {
           <div className="flex max-h-[62vh] flex-col gap-1.5 overflow-y-auto pr-0.5">
             {filteredOrders.map((o) => {
               const active = selected?.id === o.id;
-              const docCount = o.files.length;
+              const docCount = (o.files || []).length;
               return (
                 <button
                   key={o.id}
@@ -313,31 +230,39 @@ export default function Files({ dark }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className={`truncate text-xs font-semibold ${heading}`}>{o.client}</span>
-                      <span className="font-mono text-[10px] font-bold text-violet-500">{o.ref}</span>
                     </div>
-                    <div className={`mt-0.5 flex items-center gap-2 text-[10px] ${muted}`}>
-                      <span>{o.orderDate}</span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="font-mono text-[10px] font-bold text-violet-500">{o.ref}</span>
                       <span className="text-zinc-500">·</span>
-                      <span className="font-semibold">
-                        {docCount} doc{docCount !== 1 ? 's' : ''}
+                      <span className={`text-[10px] font-semibold ${muted}`}>
+                        {docCount} file{docCount !== 1 ? 's' : ''}
                       </span>
                     </div>
                   </div>
-                  <OrderStatusChip status={o.status} />
+                  {o.status && <OrderStatusChip status={o.status} />}
                 </button>
               );
             })}
             {filteredOrders.length === 0 && (
-              <div className={`py-8 text-center text-xs ${muted}`}>No orders match your search.</div>
+              <div className={`py-8 text-center text-xs ${muted}`}>
+                {leadsLoading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-violet-400" />
+                    <span>Loading Leads Soft data...</span>
+                  </div>
+                ) : (
+                  'No client orders found.'
+                )}
+              </div>
             )}
           </div>
         </div>
 
-        {/* RIGHT: documents for the selected order */}
+        {/* RIGHT: documents for the selected client */}
         <div className="min-w-0">
-          {selected && (
+          {selected ? (
             <>
-              {/* Order detail header */}
+              {/* Client detail header */}
               <div className={`rounded-2xl border p-5 ${panel}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="flex items-start gap-3.5">
@@ -352,18 +277,18 @@ export default function Files({ dark }) {
                         <span className="rounded bg-zinc-500/10 px-1.5 py-0.5 font-mono text-[11px] font-bold text-violet-400">
                           {selected.ref}
                         </span>
-                        <OrderStatusChip status={selected.status} />
+                        {selected.status && <OrderStatusChip status={selected.status} />}
                       </div>
                       <div className={`mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs ${muted}`}>
-                        <span>Ordered {selected.orderDate}</span>
+                        {selected.orderDate && <span>Date: {selected.orderDate}</span>}
+                        {selected.orderDate && selected.projectName && <span>·</span>}
+                        {selected.projectName && (
+                          <span>Category: <span className="font-medium text-violet-400">{selected.projectName}</span></span>
+                        )}
                         <span>·</span>
                         <span>
-                          Linked to <span className="font-medium text-violet-400">{selected.projectName}</span>
-                        </span>
-                        <span>·</span>
-                        <span>
-                          <span className="font-semibold">{selected.files.length}</span> document
-                          {selected.files.length !== 1 ? 's' : ''} collected
+                          <span className="font-semibold">{(selected.files || []).length}</span> file
+                          {(selected.files || []).length !== 1 ? 's' : ''} in Leads Soft
                         </span>
                       </div>
                       {selected.notes && (
@@ -371,48 +296,39 @@ export default function Files({ dark }) {
                       )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => setShowUpload(true)}
-                    className="flex items-center gap-1.5 rounded-xl bg-violet-600 px-3 py-2 text-xs font-semibold text-white shadow-md shadow-violet-600/30 transition-all cursor-pointer hover:bg-violet-500 active:scale-95"
-                  >
-                    <Upload className="h-3.5 w-3.5" /> Collect Document
-                  </button>
                 </div>
               </div>
 
               {/* Documents grid */}
               <div className="mt-4">
-                {selected.files.length > 0 ? (
+                {(selected.files || []).length > 0 ? (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     {selected.files.map(renderDocCard)}
                   </div>
                 ) : (
                   <div className={`rounded-2xl border py-16 text-center ${panel}`}>
                     <Paperclip className={`mx-auto h-10 w-10 ${muted}`} />
-                    <p className={`mt-3 text-sm font-semibold ${heading}`}>No documents collected yet</p>
+                    <p className={`mt-3 text-sm font-semibold ${heading}`}>No documents uploaded yet</p>
                     <p className={`mt-1 text-xs ${muted}`}>
-                      Use &ldquo;Collect Document&rdquo; to add photos, logos, business cards, KYC and other
-                      references for this order.
+                      No files have been attached to this client in Leads Soft &ldquo;Client Details&rdquo;.
                     </p>
                   </div>
                 )}
               </div>
             </>
+          ) : (
+            <div className={`rounded-2xl border py-16 text-center ${panel}`}>
+              <Paperclip className={`mx-auto h-10 w-10 ${muted}`} />
+              <p className={`mt-3 text-sm font-semibold ${heading}`}>
+                {leadsLoading ? 'Connecting to Leads Soft...' : 'No client details available'}
+              </p>
+              <p className={`mt-1 text-xs ${muted}`}>
+                {leadsLoading ? 'Fetching live files from Leads Soft API...' : 'Client details and attached documents will appear here once available in Leads Soft.'}
+              </p>
+            </div>
           )}
         </div>
       </div>
-
-      {showUpload && (
-        <FileUploadModal
-          dark={dark}
-          orders={orders}
-          initialOrderId={selected?.id || ''}
-          onClose={() => setShowUpload(false)}
-          onAdded={(data) => {
-            if (data.orderId) addFiles(data.orderId, [data]);
-          }}
-        />
-      )}
     </div>
   );
 }
