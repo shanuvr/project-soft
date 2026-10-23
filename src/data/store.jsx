@@ -4,7 +4,7 @@ import { createSeed } from './seed';
 
 const DB_KEY = 'project-soft:db';
 const SESSION_KEY = 'project-soft:session';
-const SEED_VERSION = 31;
+const SEED_VERSION = 32;
 
 function readKey(key) {
   try {
@@ -1662,15 +1662,10 @@ export function AppProvider({ children }) {
   };
 
   const reportIssue = async (data) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    const project = db.projects.find((p) => p.id === data.projectId);
-    const dev = db.users.find((u) => u.id === data.assignedTo);
     const title = (data.title || '').trim();
     if (!title) return;
 
-    const newIssue = {
-      id: uid('iss'),
+    const payload = {
       projectId: data.projectId || null,
       workOrderId: data.workOrderId || null,
       title,
@@ -1681,55 +1676,47 @@ export function AppProvider({ children }) {
       screenshotName: data.screenshotName || '',
       reportedBy: currentUser?.name || 'User',
       reportedById: currentUser?.id || null,
-      assignedTo: data.assignedTo || 'u2',
+      assignedTo: data.assignedTo || null,
       status: 'open',
-      dateReported: today,
-      timeReported: time,
-      resolution: '',
-      resolvedDate: null,
     };
-
-    setDb((prev) => ({
-      ...prev,
-      issues: [newIssue, ...(prev.issues || [])],
-      notifications: [
-        makeNotification('issue', `New issue "${newIssue.title}" assigned to ${dev?.name || 'a developer'}${project ? ` in ${project.name}` : ''}`, {
-          actor: currentUser?.name || 'User',
-          recipient: newIssue.assignedTo,
-          date: today,
-          time,
-          projectId: newIssue.projectId,
-          issueId: newIssue.id,
-        }),
-        ...(prev.notifications || []),
-      ],
-      activity: [
-        {
-          id: uid('a'),
-          date: today,
-          time,
-          actor: currentUser?.name || 'User',
-          projectId: newIssue.projectId,
-          text: `reported issue "${newIssue.title}"`,
-        },
-        ...(prev.activity || []),
-      ],
-    }));
 
     try {
       const res = await fetch('/api/issues/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newIssue),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         const saved = await res.json();
-        if (saved && saved.id && saved.id !== newIssue.id) {
-          setDb((prev) => ({
-            ...prev,
-            issues: (prev.issues || []).map((i) => (i.id === newIssue.id ? saved : i)),
-          }));
-        }
+        const project = db.projects.find((p) => p.id === saved.projectId);
+        const dev = db.users.find((u) => u.id === saved.assignedTo);
+        setDb((prev) => ({
+          ...prev,
+          issues: [saved, ...(prev.issues || [])],
+          notifications: [
+            makeNotification('issue', `New issue "${saved.title}" assigned to ${dev?.name || 'a developer'}${project ? ` in ${project.name}` : ''}`, {
+              actor: currentUser?.name || 'User',
+              recipient: saved.assignedTo,
+              date: saved.dateReported,
+              time: saved.timeReported,
+              projectId: saved.projectId,
+              issueId: saved.id,
+            }),
+            ...(prev.notifications || []),
+          ],
+          activity: [
+            {
+              id: uid('a'),
+              date: saved.dateReported,
+              time: saved.timeReported,
+              actor: currentUser?.name || 'User',
+              projectId: saved.projectId,
+              text: `reported issue "${saved.title}"`,
+            },
+            ...(prev.activity || []),
+          ],
+        }));
+        return saved;
       }
     } catch (err) {
       console.warn('[project-soft] Failed to persist reported issue:', err);
@@ -1737,59 +1724,56 @@ export function AppProvider({ children }) {
   };
 
   const updateIssueStatus = async (id, status, note = '') => {
-    const today = new Date().toISOString().slice(0, 10);
-    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     const resolution = note.trim();
+    const today = new Date().toISOString().slice(0, 10);
     const resolvedDate = status === 'resolved' || status === 'closed' ? today : null;
 
-    setDb((prev) => {
-      const target = (prev.issues || []).find((i) => i.id === id);
-      if (!target) return prev;
-      return {
-        ...prev,
-        issues: (prev.issues || []).map((i) =>
-          i.id === id
-            ? {
-                ...i,
-                status,
-                resolution: resolution || i.resolution,
-                resolvedDate: resolvedDate || (status === 'open' || status === 'in-progress' ? null : i.resolvedDate),
-              }
-            : i,
-        ),
-        notifications: [
-          makeNotification('issue', `Issue "${target.title}" marked as ${status.replaceAll('-', ' ')} by ${currentUser?.name || 'User'}`, {
-            actor: currentUser?.name || 'User',
-            date: today,
-            time,
-            projectId: target.projectId,
-            issueId: target.id,
-          }),
-          ...(prev.notifications || []),
-        ],
-        activity: [
-          {
-            id: uid('a'),
-            date: today,
-            time,
-            actor: currentUser?.name || 'User',
-            projectId: target.projectId,
-            text: `marked issue "${target.title}" as ${status.replaceAll('-', ' ')}`,
-          },
-          ...(prev.activity || []),
-        ],
-      };
-    });
+    const payload = { status };
+    if (resolution) payload.resolution = resolution;
+    if (resolvedDate !== undefined) payload.resolvedDate = resolvedDate;
 
     try {
-      const payload = { status };
-      if (resolution) payload.resolution = resolution;
-      if (resolvedDate !== undefined) payload.resolvedDate = resolvedDate;
-      await fetch(`/api/issues/${id}/`, {
+      const res = await fetch(`/api/issues/${id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      if (res.ok) {
+        const saved = await res.json();
+        setDb((prev) => {
+          const target = (prev.issues || []).find((i) => i.id === id);
+          return {
+            ...prev,
+            issues: (prev.issues || []).map((i) => (i.id === id ? saved : i)),
+            notifications: target
+              ? [
+                  makeNotification('issue', `Issue "${saved.title || target.title}" marked as ${status.replaceAll('-', ' ')} by ${currentUser?.name || 'User'}`, {
+                    actor: currentUser?.name || 'User',
+                    date: saved.resolvedDate || today,
+                    time: saved.timeReported || '',
+                    projectId: saved.projectId || target.projectId,
+                    issueId: saved.id || target.id,
+                  }),
+                  ...(prev.notifications || []),
+                ]
+              : prev.notifications,
+            activity: target
+              ? [
+                  {
+                    id: uid('a'),
+                    date: today,
+                    time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+                    actor: currentUser?.name || 'User',
+                    projectId: saved.projectId || target.projectId,
+                    text: `marked issue "${saved.title || target.title}" as ${status.replaceAll('-', ' ')}`,
+                  },
+                  ...(prev.activity || []),
+                ]
+              : prev.activity,
+          };
+        });
+        return saved;
+      }
     } catch (err) {
       console.warn('[project-soft] Failed to update issue status on backend:', err);
     }

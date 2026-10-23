@@ -522,7 +522,7 @@ export default function Calendar({ dark }) {
       backendEvents.forEach((ev) => {
         push(ev.date, ev);
       });
-      // Also merge any local issues
+      // Also merge issues from backend
       (db.issues || [])
         .filter((i) => isPmOrAdmin || i.assignedTo === currentUser?.id)
         .forEach((i) => {
@@ -537,7 +537,6 @@ export default function Calendar({ dark }) {
           });
         });
     } else {
-      // Local fallback until backend events resolve
       (db.projects || [])
         .filter((p) => isPmOrAdmin || (p.team || []).includes(currentUser?.id))
         .forEach((p) => {
