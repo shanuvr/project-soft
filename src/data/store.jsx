@@ -578,6 +578,49 @@ export function AppProvider({ children }) {
     return () => clearInterval(timer);
   }, []);
 
+  // Load and sync issues from backend
+  useEffect(() => {
+    const fetchIssuesFromDb = async () => {
+      try {
+        const res = await fetch('/api/issues/');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setDb((prev) => {
+            const prevIssues = prev.issues || [];
+            const isSame =
+              prevIssues.length === data.length &&
+              data.every((d, i) => {
+                const p = prevIssues[i];
+                return (
+                  p &&
+                  p.id === d.id &&
+                  p.status === d.status &&
+                  p.resolution === d.resolution &&
+                  p.assignedTo === d.assignedTo &&
+                  p.priority === d.priority &&
+                  p.category === d.category &&
+                  p.title === d.title &&
+                  p.workOrderId === d.workOrderId &&
+                  p.projectId === d.projectId
+                );
+              });
+            if (isSame) return prev;
+            return {
+              ...prev,
+              issues: data,
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('[project-soft] Failed to fetch issues from backend:', err);
+      }
+    };
+    fetchIssuesFromDb();
+    const timer = setInterval(fetchIssuesFromDb, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
   const acceptPtd = (id) => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -1618,7 +1661,7 @@ export function AppProvider({ children }) {
     }));
   };
 
-  const reportIssue = (data) => {
+  const reportIssue = async (data) => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     const project = db.projects.find((p) => p.id === data.projectId);
@@ -1672,11 +1715,32 @@ export function AppProvider({ children }) {
         ...(prev.activity || []),
       ],
     }));
+
+    try {
+      const res = await fetch('/api/issues/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newIssue),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        if (saved && saved.id && saved.id !== newIssue.id) {
+          setDb((prev) => ({
+            ...prev,
+            issues: (prev.issues || []).map((i) => (i.id === newIssue.id ? saved : i)),
+          }));
+        }
+      }
+    } catch (err) {
+      console.warn('[project-soft] Failed to persist reported issue:', err);
+    }
   };
 
-  const updateIssueStatus = (id, status, note = '') => {
+  const updateIssueStatus = async (id, status, note = '') => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const resolution = note.trim();
+    const resolvedDate = status === 'resolved' || status === 'closed' ? today : null;
 
     setDb((prev) => {
       const target = (prev.issues || []).find((i) => i.id === id);
@@ -1688,8 +1752,8 @@ export function AppProvider({ children }) {
             ? {
                 ...i,
                 status,
-                resolution: note.trim() || i.resolution,
-                resolvedDate: status === 'resolved' || status === 'closed' ? today : i.resolvedDate,
+                resolution: resolution || i.resolution,
+                resolvedDate: resolvedDate || (status === 'open' || status === 'in-progress' ? null : i.resolvedDate),
               }
             : i,
         ),
@@ -1716,6 +1780,31 @@ export function AppProvider({ children }) {
         ],
       };
     });
+
+    try {
+      const payload = { status };
+      if (resolution) payload.resolution = resolution;
+      if (resolvedDate !== undefined) payload.resolvedDate = resolvedDate;
+      await fetch(`/api/issues/${id}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      console.warn('[project-soft] Failed to update issue status on backend:', err);
+    }
+  };
+
+  const deleteIssue = async (id) => {
+    setDb((prev) => ({
+      ...prev,
+      issues: (prev.issues || []).filter((i) => i.id !== id),
+    }));
+    try {
+      await fetch(`/api/issues/${id}/`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn('[project-soft] Failed to delete issue from backend:', err);
+    }
   };
 
   const sendMessage = (toId, text, attachment = null) => {
@@ -2061,6 +2150,7 @@ export function AppProvider({ children }) {
         deleteFile,
         reportIssue,
         updateIssueStatus,
+        deleteIssue,
         sendMessage,
         markConversationRead,
         markNotificationRead,
