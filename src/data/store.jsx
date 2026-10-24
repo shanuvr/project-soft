@@ -133,6 +133,8 @@ export function AppProvider({ children }) {
         }
 
         const grant = (coreUser.app_access || []).find((a) => a.app === 'project-soft');
+        const orgId = grant?.org || coreUser.organizations?.[0]?.id || null;
+        const orgName = (coreUser.organizations || []).find((o) => o.id === orgId)?.name || '';
         let roleName = (grant?.role || '').toLowerCase();
         if (!roleName && coreUser.is_superuser) {
           roleName = 'project manager';
@@ -150,6 +152,9 @@ export function AppProvider({ children }) {
           email: coreUser.email,
           role,
           title,
+          org_id: orgId,
+          organization_id: orgId,
+          organization_name: orgName,
           token: data.access,
           refresh: data.refresh,
         };
@@ -419,11 +424,19 @@ export function AppProvider({ children }) {
     }
   };
 
-  // Fetch real team users (PMs, Developers, Admins) from SystemSoft Core
+  // Fetch real team users (PMs, Developers, Admins) strictly scoped to active tenant
   useEffect(() => {
     const fetchUsers = async () => {
       try {
-        const res = await fetch('/api/users/');
+        const queryParams = new URLSearchParams();
+        if (currentUser?.org_id || currentUser?.organization_id) {
+          queryParams.set('orgId', currentUser.org_id || currentUser.organization_id);
+        }
+        if (currentUser?.id) {
+          queryParams.set('userId', currentUser.id);
+        }
+        const qs = queryParams.toString();
+        const res = await fetch(`/api/users/${qs ? `?${qs}` : ''}`);
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -449,7 +462,7 @@ export function AppProvider({ children }) {
     fetchUsers();
     const timer = setInterval(fetchUsers, 5000);
     return () => clearInterval(timer);
-  }, []);
+  }, [currentUser?.id, currentUser?.org_id, currentUser?.organization_id]);
 
   // Load and sync daily report entries from MySQL backend
   useEffect(() => {
@@ -619,11 +632,19 @@ export function AppProvider({ children }) {
     return () => clearInterval(timer);
   }, []);
 
-  // Load and sync chat messages from backend
+  // Load and sync chat messages from backend (scoped to tenant)
   useEffect(() => {
     const fetchMessagesFromDb = async () => {
       try {
-        const res = await fetch('/api/messages/');
+        const queryParams = new URLSearchParams();
+        if (currentUser?.org_id || currentUser?.organization_id) {
+          queryParams.set('orgId', currentUser.org_id || currentUser.organization_id);
+        }
+        if (currentUser?.id) {
+          queryParams.set('userId', currentUser.id);
+        }
+        const qs = queryParams.toString();
+        const res = await fetch(`/api/messages/${qs ? `?${qs}` : ''}`);
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -654,7 +675,7 @@ export function AppProvider({ children }) {
       clearInterval(timer);
       window.removeEventListener('focus', fetchMessagesFromDb);
     };
-  }, []);
+  }, [currentUser?.id, currentUser?.org_id, currentUser?.organization_id]);
 
   const acceptPtd = (id) => {
     const today = new Date().toISOString().slice(0, 10);
@@ -1860,6 +1881,7 @@ export function AppProvider({ children }) {
           to: toId,
           text: body,
           attachment: att,
+          orgId: currentUser?.org_id || currentUser?.organization_id || undefined,
           date: today,
           time,
         }),
