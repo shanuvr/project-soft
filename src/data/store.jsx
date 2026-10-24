@@ -419,37 +419,38 @@ export function AppProvider({ children }) {
     }
   };
 
-  // Fetch real developers from SystemSoft Core
+  // Fetch real team users (PMs, Developers, Admins) from SystemSoft Core
   useEffect(() => {
-    const fetchDevelopers = async () => {
+    const fetchUsers = async () => {
       try {
-        const res = await fetch('/api/developers/');
+        const res = await fetch('/api/users/');
         if (!res.ok) return;
         const data = await res.json();
-        if (Array.isArray(data)) {
+        if (Array.isArray(data) && data.length > 0) {
           setDb((prev) => {
             const prevUsers = prev.users || [];
-            const nonDevs = prevUsers.filter((u) => u.role !== 'dev');
-            const prevDevs = prevUsers.filter((u) => u.role === 'dev');
+            const dataIds = new Set(data.map((u) => u.id));
+            const existingExtras = prevUsers.filter((u) => !dataIds.has(u.id));
+            const merged = [...data, ...existingExtras];
             const isSame =
-              prevDevs.length === data.length &&
-              data.every((d, i) => {
-                const p = prevDevs[i];
-                return p && p.id === d.id && p.name === d.name && p.email === d.email && p.title === d.title;
+              prevUsers.length === merged.length &&
+              merged.every((d) => {
+                const p = prevUsers.find((x) => x.id === d.id);
+                return p && p.name === d.name && p.email === d.email && p.role === d.role;
               });
             if (isSame) return prev;
             return {
               ...prev,
-              users: [...nonDevs, ...data],
+              users: merged,
             };
           });
         }
       } catch (err) {
-        console.warn('[project-soft] Failed to fetch developers from SystemSoft Core:', err);
+        console.warn('[project-soft] Failed to fetch users from SystemSoft Core:', err);
       }
     };
-    fetchDevelopers();
-    const timer = setInterval(fetchDevelopers, 10000);
+    fetchUsers();
+    const timer = setInterval(fetchUsers, 5000);
     return () => clearInterval(timer);
   }, []);
 
@@ -631,20 +632,14 @@ export function AppProvider({ children }) {
         if (Array.isArray(data)) {
           setDb((prev) => {
             const prevMessages = prev.messages || [];
-            const isSame =
-              prevMessages.length === data.length &&
-              data.every((d, i) => {
-                const p = prevMessages[i];
-                return (
-                  p &&
-                  p.id === d.id &&
-                  p.read === d.read &&
-                  p.text === d.text &&
-                  p.date === d.date &&
-                  p.time === d.time
-                );
+            if (prevMessages.length === data.length) {
+              const prevMap = new Map(prevMessages.map((m) => [m.id, m]));
+              const allMatch = data.every((d) => {
+                const p = prevMap.get(d.id);
+                return p && p.read === d.read && p.text === d.text;
               });
-            if (isSame) return prev;
+              if (allMatch) return prev;
+            }
             return {
               ...prev,
               messages: data,
@@ -656,8 +651,12 @@ export function AppProvider({ children }) {
       }
     };
     fetchMessagesFromDb();
-    const timer = setInterval(fetchMessagesFromDb, 3000);
-    return () => clearInterval(timer);
+    const timer = setInterval(fetchMessagesFromDb, 1500);
+    window.addEventListener('focus', fetchMessagesFromDb);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', fetchMessagesFromDb);
+    };
   }, []);
 
   const acceptPtd = (id) => {

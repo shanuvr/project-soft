@@ -37,7 +37,7 @@ function fmtSize(bytes) {
 }
 
 function sortKey(m) {
-  return `${m.date || ''}${m.time || ''}`;
+  return m.createdAt || m.created_at || `${m.date || ''}T${m.time || ''}-${m.id || ''}`;
 }
 
 function AttachmentChip({ attachment, mine, dark }) {
@@ -85,13 +85,32 @@ export default function DevChat({ dark }) {
   const messages = useMemo(() => db.messages || [], [db.messages]);
   const meId = currentUser?.id;
 
-  const usersById = useMemo(() => Object.fromEntries(users.map((u) => [u.id, u])), [users]);
+  const allUsers = useMemo(() => {
+    const list = [...users];
+    const map = new Map(list.map((u) => [u.id, u]));
+    for (const m of messages) {
+      const otherId = m.from === meId ? m.to : m.from;
+      if (otherId && otherId !== meId && !map.has(otherId)) {
+        const fallback = {
+          id: otherId,
+          name: otherId.startsWith('core-') ? `User ${otherId.replace('core-', '')}` : otherId,
+          role: 'user',
+          title: 'Team Member',
+        };
+        map.set(otherId, fallback);
+        list.push(fallback);
+      }
+    }
+    return list;
+  }, [users, messages, meId]);
+
+  const usersById = useMemo(() => Object.fromEntries(allUsers.map((u) => [u.id, u])), [allUsers]);
 
   const directory = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return users
+    return allUsers
       .filter((u) => u.id !== meId)
-      .filter((u) => !q || u.name.toLowerCase().includes(q) || u.title.toLowerCase().includes(q))
+      .filter((u) => !q || u.name.toLowerCase().includes(q) || (u.title || '').toLowerCase().includes(q))
       .map((u) => {
         const key = convKey(meId, u.id);
         const thread = messages.filter((m) => m.conv === key).sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
@@ -109,7 +128,7 @@ export default function DevChat({ dark }) {
         const bt = b.last ? sortKey(b.last) : '';
         return bt.localeCompare(at);
       });
-  }, [users, messages, meId, query]);
+  }, [allUsers, messages, meId, query]);
 
   const conversation = useMemo(() => {
     if (!activePeerId) return [];
