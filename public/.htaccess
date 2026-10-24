@@ -1,0 +1,19 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Let the Django/Passenger app under /v1 pass through untouched
+  RewriteCond %{REQUEST_URI} ^/v1(/|$)
+  RewriteRule ^ - [L]
+
+  # Skip real files and directories (assets, favicon, etc.)
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+
+  # Everything else → React SPA
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Prevent Apache from guessing extensionless paths as directories
+<IfModule mod_negotiation.c>
+  Options -MultiViews
+</IfModule>
