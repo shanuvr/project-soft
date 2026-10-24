@@ -4,7 +4,7 @@ import { createSeed } from './seed';
 
 const DB_KEY = 'project-soft:db';
 const SESSION_KEY = 'project-soft:session';
-const SEED_VERSION = 33;
+const SEED_VERSION = 34;
 
 function readKey(key) {
   try {
@@ -429,19 +429,16 @@ export function AppProvider({ children }) {
         if (Array.isArray(data) && data.length > 0) {
           setDb((prev) => {
             const prevUsers = prev.users || [];
-            const dataIds = new Set(data.map((u) => u.id));
-            const existingExtras = prevUsers.filter((u) => !dataIds.has(u.id));
-            const merged = [...data, ...existingExtras];
             const isSame =
-              prevUsers.length === merged.length &&
-              merged.every((d) => {
+              prevUsers.length === data.length &&
+              data.every((d) => {
                 const p = prevUsers.find((x) => x.id === d.id);
                 return p && p.name === d.name && p.email === d.email && p.role === d.role;
               });
             if (isSame) return prev;
             return {
               ...prev,
-              users: merged,
+              users: data,
             };
           });
         }

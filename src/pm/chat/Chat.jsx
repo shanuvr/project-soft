@@ -85,30 +85,11 @@ export default function Chat({ dark }) {
   const messages = useMemo(() => db.messages || [], [db.messages]);
   const meId = currentUser?.id;
 
-  const allUsers = useMemo(() => {
-    const list = [...users];
-    const map = new Map(list.map((u) => [u.id, u]));
-    for (const m of messages) {
-      const otherId = m.from === meId ? m.to : m.from;
-      if (otherId && otherId !== meId && !map.has(otherId)) {
-        const fallback = {
-          id: otherId,
-          name: otherId.startsWith('core-') ? `User ${otherId.replace('core-', '')}` : otherId,
-          role: 'user',
-          title: 'Team Member',
-        };
-        map.set(otherId, fallback);
-        list.push(fallback);
-      }
-    }
-    return list;
-  }, [users, messages, meId]);
-
-  const usersById = useMemo(() => Object.fromEntries(allUsers.map((u) => [u.id, u])), [allUsers]);
+  const usersById = useMemo(() => Object.fromEntries(users.map((u) => [u.id, u])), [users]);
 
   const directory = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return allUsers
+    return users
       .filter((u) => u.id !== meId)
       .filter((u) => !q || u.name.toLowerCase().includes(q) || (u.title || '').toLowerCase().includes(q))
       .map((u) => {
@@ -128,7 +109,7 @@ export default function Chat({ dark }) {
         const bt = b.last ? sortKey(b.last) : '';
         return bt.localeCompare(at);
       });
-  }, [allUsers, messages, meId, query]);
+  }, [users, messages, meId, query]);
 
   const conversation = useMemo(() => {
     if (!activePeerId) return [];
