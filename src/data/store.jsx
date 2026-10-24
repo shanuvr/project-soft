@@ -4,7 +4,7 @@ import { createSeed } from './seed';
 
 const DB_KEY = 'project-soft:db';
 const SESSION_KEY = 'project-soft:session';
-const SEED_VERSION = 32;
+const SEED_VERSION = 33;
 
 function readKey(key) {
   try {
@@ -618,6 +618,45 @@ export function AppProvider({ children }) {
     };
     fetchIssuesFromDb();
     const timer = setInterval(fetchIssuesFromDb, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Load and sync chat messages from backend
+  useEffect(() => {
+    const fetchMessagesFromDb = async () => {
+      try {
+        const res = await fetch('/api/messages/');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setDb((prev) => {
+            const prevMessages = prev.messages || [];
+            const isSame =
+              prevMessages.length === data.length &&
+              data.every((d, i) => {
+                const p = prevMessages[i];
+                return (
+                  p &&
+                  p.id === d.id &&
+                  p.read === d.read &&
+                  p.text === d.text &&
+                  p.date === d.date &&
+                  p.time === d.time
+                );
+              });
+            if (isSame) return prev;
+            return {
+              ...prev,
+              messages: data,
+            };
+          });
+        }
+      } catch (err) {
+        console.warn('[project-soft] Failed to fetch chat messages from backend:', err);
+      }
+    };
+    fetchMessagesFromDb();
+    const timer = setInterval(fetchMessagesFromDb, 3000);
     return () => clearInterval(timer);
   }, []);
 
@@ -1791,15 +1830,16 @@ export function AppProvider({ children }) {
     }
   };
 
-  const sendMessage = (toId, text, attachment = null) => {
+  const sendMessage = async (toId, text, attachment = null) => {
     const body = ('' + (text || '')).trim();
     const att = attachment && attachment.name ? attachment : null;
     if ((!body && !att) || !toId || toId === currentUser?.id) return;
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     const conv = [currentUser.id, toId].sort().join(':');
+    const tempId = uid('m');
     const msg = {
-      id: uid('m'),
+      id: tempId,
       conv,
       from: currentUser.id,
       to: toId,
@@ -1813,16 +1853,55 @@ export function AppProvider({ children }) {
       ...prev,
       messages: [...(prev.messages || []), msg],
     }));
+
+    try {
+      const res = await fetch('/api/messages/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conv,
+          from: currentUser.id,
+          to: toId,
+          text: body,
+          attachment: att,
+          date: today,
+          time,
+        }),
+      });
+      if (res.ok) {
+        const saved = await res.json();
+        setDb((prev) => ({
+          ...prev,
+          messages: (prev.messages || []).map((m) => (m.id === tempId ? saved : m)),
+        }));
+      }
+    } catch (err) {
+      console.warn('[project-soft] Failed to save chat message to backend:', err);
+    }
   };
 
   const markConversationRead = (peerId) => {
-    if (!peerId) return;
+    if (!peerId || !currentUser?.id) return;
     setDb((prev) => ({
       ...prev,
       messages: (prev.messages || []).map((m) =>
         m.to === currentUser?.id && m.from === peerId ? { ...m, read: true } : m,
       ),
     }));
+    try {
+      fetch('/api/messages/mark-read/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.id,
+          peerId,
+        }),
+      }).catch((err) => {
+        console.warn('[project-soft] Failed to mark messages as read on backend:', err);
+      });
+    } catch {
+      // ignore
+    }
   };
 
   const markNotificationRead = (id) => {

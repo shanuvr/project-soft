@@ -73,28 +73,7 @@ export function createSeed() {
       { id: 'n8', type: 'changes', title: 'Changes requested on "Message Queue Ingestion Service": add retry backoff handling', actor: 'Ajoy Kumar', date: isoDaysFromNow(-3), time: '11:05', projectId: 'p2', workOrderId: 'WORK-1004', issueId: null, read: false },
     ],
 
-    messages: [
-      // Ajoy (PM) <-> Rahul — rate limiter & reconciliation
-      { id: 'msg1', conv: 'u1:u2', from: 'u1', to: 'u2', text: 'Hey Rahul, can you take a look at the rate limiter issue? Legit bulk pulls are getting 429s during off-peak.', date: isoDaysFromNow(-2), time: '10:12', read: true },
-      { id: 'msg2', conv: 'u1:u2', from: 'u2', to: 'u1', text: 'On it — the token bucket refill looks too aggressive. I will patch it today.', date: isoDaysFromNow(-2), time: '10:40', read: true },
-      { id: 'msg3', conv: 'u1:u2', from: 'u1', to: 'u2', text: 'Great. Also the reconciliation report times out past 50k records — please chunk the processing.', date: isoDaysFromNow(-2), time: '17:02', read: true },
-      { id: 'msg4', conv: 'u1:u2', from: 'u2', to: 'u1', text: 'Rate limiter fix is ready for review. Chunked reconciliation is done too.', date: isoDaysFromNow(-1), time: '09:24', read: true },
-      { id: 'msg5', conv: 'u1:u2', from: 'u2', to: 'u1', text: 'Morning Ajoy — API key rotation is next on my list, should be wrapped by Friday.', date: isoDaysFromNow(0), time: '08:31', read: false },
-
-      // Ajoy (PM) <-> Arun — session/token work & email headers
-      { id: 'msg6', conv: 'u1:u3', from: 'u3', to: 'u1', text: 'Session & token management is at 65%. Pushed the JWT rotation branch for review.', date: isoDaysFromNow(-1), time: '15:10', read: false },
-      { id: 'msg7', conv: 'u1:u3', from: 'u1', to: 'u3', text: 'Looks good. Add SPF/DKIM headers to the reset emails too — they are landing in spam.', date: isoDaysFromNow(-1), time: '15:35', read: true },
-      { id: 'msg8', conv: 'u1:u3', from: 'u3', to: 'u1', text: 'Done — headers verified and the "password reset lands in spam" issue is resolved.', date: isoDaysFromNow(0), time: '11:02', read: false },
-
-      // Ajoy (PM) <-> Rohan — password reset flow
-      { id: 'msg9', conv: 'u1:u4', from: 'u4', to: 'u1', text: 'Password reset flow is at 30% — the OTP form is ready, email template still needs the DKIM fix.', date: isoDaysFromNow(-1), time: '16:20', read: true },
-      { id: 'msg10', conv: 'u1:u4', from: 'u4', to: 'u1', text: 'The 2FA edge case is handled too. Submitting Password Reset Flow for review shortly.', date: isoDaysFromNow(0), time: '09:47', read: true },
-
-      // Rahul <-> Arun — dev to dev
-      { id: 'msg11', conv: 'u2:u3', from: 'u2', to: 'u3', text: 'Arun, the rate limiter change is up — can you sanity check the bucket refill config?', date: isoDaysFromNow(-1), time: '13:41', read: true },
-      { id: 'msg12', conv: 'u2:u3', from: 'u3', to: 'u2', text: 'Sure — looks correct. Just bump the capacity constant and the token bucket math checks out.', date: isoDaysFromNow(-1), time: '14:05', read: true },
-      { id: 'msg13', conv: 'u2:u3', from: 'u3', to: 'u2', text: 'FYI the chunked reconciliation processor is ready for you to test against the 50k batch.', date: isoDaysFromNow(0), time: '12:18', read: false },
-    ],
+    messages: [],
 
     reportEntries: [],
     calendarEvents: [],
