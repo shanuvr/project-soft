@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { useApp } from '../../data/context.js';
+import { API_BASE } from '../../api/config.js';
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -459,7 +460,7 @@ export default function Calendar({ dark }) {
       const q = new URLSearchParams();
       if (currentUser?.id) q.set('userId', currentUser.id);
       if (role) q.set('role', role);
-      const res = await fetch(`/api/calendar/events/?${q.toString()}`);
+      const res = await fetch(`${API_BASE}/calendar/events/?${q.toString()}`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) {

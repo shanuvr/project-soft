@@ -7,6 +7,11 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
+      '/v1/api': {
+        target: 'http://127.0.0.1:8003',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/v1/, ''),
+      },
       '/api/ptda': {
         target: 'http://127.0.0.1:8001',
         changeOrigin: true,

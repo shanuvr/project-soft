@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AppContext } from './context';
 import { createSeed } from './seed';
+import { API_BASE } from '../api/config';
 
 const DB_KEY = 'project-soft:db';
 const SESSION_KEY = 'project-soft:session';
@@ -53,7 +54,7 @@ function makeNotification(type, title, opts = {}) {
   // Only dispatch network request once per unique notification event
   if (!isDuplicate) {
     try {
-      fetch('/api/notifications/', {
+      fetch(`${API_BASE}/notifications/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(notif),
@@ -225,7 +226,7 @@ export function AppProvider({ children }) {
     const ptdId = target?.ptdId || target?.id;
     const orderId = target?.orderId;
     try {
-      await fetch('/api/ptds/decision/', {
+      await fetch(`${API_BASE}/ptds/decision/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -245,7 +246,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     const fetchIncomingFromAccounts = async () => {
       try {
-        const res = await fetch('/api/ptds/');
+        const res = await fetch(`${API_BASE}/ptds/`);
         if (!res.ok) return;
         const incoming = await res.json();
         if (!Array.isArray(incoming)) return;
@@ -296,7 +297,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     const fetchProjectsFromDb = async () => {
       try {
-        const res = await fetch('/api/projects/');
+        const res = await fetch(`${API_BASE}/projects/`);
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -334,7 +335,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     const fetchWorkOrdersFromDb = async () => {
       try {
-        const res = await fetch('/api/work-orders/');
+        const res = await fetch(`${API_BASE}/work-orders/`);
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -377,7 +378,7 @@ export function AppProvider({ children }) {
   const fetchLeadsFilesFromBackend = useCallback(async () => {
     try {
       setLeadsLoading(true);
-      const res = await fetch('/api/leads-files/');
+      const res = await fetch(`${API_BASE}/leads-files/`);
       if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) {
@@ -401,7 +402,7 @@ export function AppProvider({ children }) {
       alert('Download URL not available for this file.');
       return;
     }
-    const downloadUrl = `/api/leads-files/download/?url=${encodeURIComponent(file.url)}`;
+    const downloadUrl = `${API_BASE}/leads-files/download/?url=${encodeURIComponent(file.url)}`;
     try {
       const res = await fetch(downloadUrl);
       if (!res.ok) {
@@ -436,7 +437,7 @@ export function AppProvider({ children }) {
           queryParams.set('userId', currentUser.id);
         }
         const qs = queryParams.toString();
-        const res = await fetch(`/api/users/${qs ? `?${qs}` : ''}`);
+        const res = await fetch(`${API_BASE}/users/${qs ? `?${qs}` : ''}`);
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -468,7 +469,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     const fetchReportEntriesFromDb = async () => {
       try {
-        const res = await fetch('/api/report-entries/');
+        const res = await fetch(`${API_BASE}/report-entries/`);
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -509,7 +510,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     const fetchNotificationsFromDb = async () => {
       try {
-        const res = await fetch('/api/notifications/');
+        const res = await fetch(`${API_BASE}/notifications/`);
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -554,7 +555,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     const fetchCalendarEventsFromDb = async () => {
       try {
-        const res = await fetch('/api/calendar-events/');
+        const res = await fetch(`${API_BASE}/calendar-events/`);
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -593,7 +594,7 @@ export function AppProvider({ children }) {
   useEffect(() => {
     const fetchIssuesFromDb = async () => {
       try {
-        const res = await fetch('/api/issues/');
+        const res = await fetch(`${API_BASE}/issues/`);
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -644,7 +645,7 @@ export function AppProvider({ children }) {
           queryParams.set('userId', currentUser.id);
         }
         const qs = queryParams.toString();
-        const res = await fetch(`/api/messages/${qs ? `?${qs}` : ''}`);
+        const res = await fetch(`${API_BASE}/messages/${qs ? `?${qs}` : ''}`);
         if (!res.ok) return;
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -829,7 +830,7 @@ export function AppProvider({ children }) {
     }));
 
     try {
-      const res = await fetch('/api/work-orders/', {
+      const res = await fetch(`${API_BASE}/work-orders/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newWorkOrders),
@@ -910,7 +911,7 @@ export function AppProvider({ children }) {
     };
 
     try {
-      const res = await fetch('/api/work-orders/', {
+      const res = await fetch(`${API_BASE}/work-orders/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newWo),
@@ -982,7 +983,7 @@ export function AppProvider({ children }) {
   const acceptWorkOrder = (id) => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    fetch(`/api/work-orders/${id}/`, {
+    fetch(`${API_BASE}/work-orders/${id}/`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1047,7 +1048,7 @@ export function AppProvider({ children }) {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     const cleanRemark = remark.trim() || 'No specific remark provided.';
-    fetch(`/api/work-orders/${id}/`, {
+    fetch(`${API_BASE}/work-orders/${id}/`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1109,7 +1110,7 @@ export function AppProvider({ children }) {
   const reassignWorkOrder = (id, newAssigneeId) => {
     const today = new Date().toISOString().slice(0, 10);
     const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-    fetch(`/api/work-orders/${id}/`, {
+    fetch(`${API_BASE}/work-orders/${id}/`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1173,7 +1174,7 @@ export function AppProvider({ children }) {
     const doneStatus = status === 'completed' || status === 'done';
     const autoProgress = doneStatus ? 100 : undefined;
 
-    fetch(`/api/work-orders/${id}/`, {
+    fetch(`${API_BASE}/work-orders/${id}/`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1236,7 +1237,7 @@ export function AppProvider({ children }) {
   };
 
   const updateWorkOrder = async (id, patch) => {
-    fetch(`/api/work-orders/${id}/`, {
+    fetch(`${API_BASE}/work-orders/${id}/`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(patch),
@@ -1269,7 +1270,7 @@ export function AppProvider({ children }) {
   };
 
   const deleteWorkOrder = async (id) => {
-    fetch(`/api/work-orders/${id}/`, {
+    fetch(`${API_BASE}/work-orders/${id}/`, {
       method: 'DELETE',
     }).catch((err) => console.warn('[project-soft] Failed to delete work order from MySQL:', err));
 
@@ -1407,7 +1408,7 @@ export function AppProvider({ children }) {
     if (!targetWo) return;
 
     const newActualHours = Math.round(((Number(targetWo.actualHours) || 0) + hrs) * 100) / 100;
-    fetch(`/api/work-orders/${workOrderId}/`, {
+    fetch(`${API_BASE}/work-orders/${workOrderId}/`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ actualHours: newActualHours }),
@@ -1737,7 +1738,7 @@ export function AppProvider({ children }) {
     };
 
     try {
-      const res = await fetch('/api/issues/', {
+      const res = await fetch(`${API_BASE}/issues/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -1789,7 +1790,7 @@ export function AppProvider({ children }) {
     if (resolvedDate !== undefined) payload.resolvedDate = resolvedDate;
 
     try {
-      const res = await fetch(`/api/issues/${id}/`, {
+      const res = await fetch(`${API_BASE}/issues/${id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -1841,7 +1842,7 @@ export function AppProvider({ children }) {
       issues: (prev.issues || []).filter((i) => i.id !== id),
     }));
     try {
-      await fetch(`/api/issues/${id}/`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/issues/${id}/`, { method: 'DELETE' });
     } catch (err) {
       console.warn('[project-soft] Failed to delete issue from backend:', err);
     }
@@ -1872,7 +1873,7 @@ export function AppProvider({ children }) {
     }));
 
     try {
-      const res = await fetch('/api/messages/', {
+      const res = await fetch(`${API_BASE}/messages/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1907,7 +1908,7 @@ export function AppProvider({ children }) {
       ),
     }));
     try {
-      fetch('/api/messages/mark-read/', {
+      fetch(`${API_BASE}/messages/mark-read/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1928,7 +1929,7 @@ export function AppProvider({ children }) {
       notifications: (prev.notifications || []).map((n) => (n.id === id ? { ...n, read: true } : n)),
     }));
     try {
-      fetch(`/api/notifications/${id}/`, {
+      fetch(`${API_BASE}/notifications/${id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ read: true }),
@@ -1951,7 +1952,7 @@ export function AppProvider({ children }) {
       }),
     }));
     try {
-      fetch('/api/notifications/mark-all-read/', {
+      fetch(`${API_BASE}/notifications/mark-all-read/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(targetIds && Array.isArray(targetIds) ? { ids: targetIds } : {}),
@@ -1982,7 +1983,7 @@ export function AppProvider({ children }) {
 
     let entry = { ...payload, id: uid('re') };
     try {
-      const res = await fetch('/api/report-entries/', {
+      const res = await fetch(`${API_BASE}/report-entries/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -2050,7 +2051,7 @@ export function AppProvider({ children }) {
 
     let savedList = payload.map((p) => ({ ...p, id: uid('re') }));
     try {
-      const res = await fetch('/api/report-entries/', {
+      const res = await fetch(`${API_BASE}/report-entries/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -2117,7 +2118,7 @@ export function AppProvider({ children }) {
   const deleteReportEntry = async (id) => {
     const target = (db.reportEntries || []).find((e) => e.id === id);
     try {
-      await fetch(`/api/report-entries/${id}/`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/report-entries/${id}/`, { method: 'DELETE' });
     } catch (err) {
       console.warn('[project-soft] Failed to delete report entry from backend:', err);
     }
@@ -2140,7 +2141,7 @@ export function AppProvider({ children }) {
 
   const addCalendarEvent = async (eventData) => {
     try {
-      const res = await fetch('/api/calendar-events/', {
+      const res = await fetch(`${API_BASE}/calendar-events/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(eventData),
@@ -2167,7 +2168,7 @@ export function AppProvider({ children }) {
 
   const updateCalendarEvent = async (id, patch) => {
     try {
-      await fetch(`/api/calendar-events/${id}/`, {
+      await fetch(`${API_BASE}/calendar-events/${id}/`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(patch),
@@ -2183,7 +2184,7 @@ export function AppProvider({ children }) {
 
   const deleteCalendarEvent = async (id) => {
     try {
-      await fetch(`/api/calendar-events/${id}/`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/calendar-events/${id}/`, { method: 'DELETE' });
     } catch (err) {
       console.warn('[project-soft] Failed to delete calendar event on backend:', err);
     }

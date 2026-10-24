@@ -19,6 +19,7 @@ import {
   Timer,
 } from 'lucide-react';
 import { useApp } from '../../data/context.js';
+import { API_BASE } from '../../api/config.js';
 import { PriorityBadge, WoStatusBadge } from './badges.jsx';
 
 function isDone(wo) {
@@ -246,7 +247,7 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
 
     // Call backend start-timer endpoint to persist & automatically pause other workorder timers for this user
     try {
-      const res = await fetch(`/api/work-orders/${wo.id}/start-timer/`, {
+      const res = await fetch(`${API_BASE}/work-orders/${wo.id}/start-timer/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, startedAt: nowTs }),
@@ -297,7 +298,7 @@ export default function DevWorkOrderDetail({ wo, project, currentUser, dark, onB
 
     // 1. Persist stop timer & log hours to backend MySQL
     try {
-      await fetch(`/api/work-orders/${wo.id}/stop-timer/`, {
+      await fetch(`${API_BASE}/work-orders/${wo.id}/stop-timer/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
